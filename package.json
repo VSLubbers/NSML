@@ -1,0 +1,27 @@
+{
+  "name": "nsml-parser",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+  "build": "tsc",
+  "watch": "tsc -w",
+  "bundle": "npm run build && esbuild dist/index.js --bundle --outfile=dist/nsml-parser.min.js --platform=browser --format=iife --global-name=NSMLParser --minify",
+  "test": "jest",
+  "format": "prettier --write 'src/**/*.ts' 'tests/**/*.ts'",
+  "lint": "tsc --noEmit"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.6.2",
+    "esbuild": "^0.25.10",
+    "jest": "^30.2.0",
+    "prettier": "^3.6.2",
+    "ts-jest": "^29.4.4",
+    "typescript": "^5.9.3"
+  }
+}

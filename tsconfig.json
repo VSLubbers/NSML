@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",  // Modern JS for browsers/Node
+    "module": "ESNext",  // ES modules
+    "moduleResolution": "node",  // Node-style resolution
+    "outDir": "./dist",  // Compiled output
+    "rootDir": "./src",  // Source files
+    "strict": true,  // Enable strict type checking
+    "esModuleInterop": true,  // Better import compatibility
+    "skipLibCheck": true,  // Speed up compilation
+    "forceConsistentCasingInFileNames": true,  // Prevent case issues on Ubuntu (case-sensitive FS)
+    "declaration": true,  // Generate .d.ts files for types
+    "noEmitOnError": true  // Don't build on errors
+  },
+  "include": ["src/**/*"],  // What to compile
+  "exclude": ["node_modules", "dist", "tests"]  // Ignore these
+}
