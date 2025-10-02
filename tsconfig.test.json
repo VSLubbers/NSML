@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./lib",  // Temp dir for test compilation; create it if needed
+    "rootDir": ".",     // Include tests at root level
+    "types": ["jest", "node"]  // Add Jest types for better IntelliSense
+  },
+  "include": [
+    "src/**/*",
+    "tests/**/*"  // Explicitly include tests for ts-jest
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}
