@@ -86,3 +86,15 @@ export interface Token {
   line: number;
   column: number;
 }
+
+/**
+ * Expression Node: Tree for parsed expressions.
+ */
+export interface ExprNode {
+  op?: Operator;
+  left?: ExprNode;
+  right?: ExprNode;
+  value?: any;  // Literal or symbol reference
+  func?: string;  // For function calls like error(...)
+  args?: ExprNode[];  // Arguments for functions
+}

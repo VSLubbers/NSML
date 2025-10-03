@@ -49,9 +49,6 @@ class Parser {
     // Parse attributes
     while (this.peek()?.type === 'attribute') {
       const attr = this.consume('attribute');
-      // -------- DEBUG LOG START --------
-      console.log('Parsing attribute raw:', attr.value);
-      // -------- DEBUG LOG END --------
       const eqIndex = attr.value.indexOf('=');
       if (eqIndex === -1) {
         this.errors.push({ type: 'syntax', message: 'Invalid attribute format', line: node.line });
@@ -59,15 +56,9 @@ class Parser {
       }
       const key = attr.value.substring(0, eqIndex).trim();
       let val = attr.value.substring(eqIndex + 1).trim();
-      // -------- DEBUG LOG START --------
-      console.log('Split attr key/val:', key, val);
-      // -------- DEBUG LOG END --------
       if (val.startsWith('"') || val.startsWith("'")) {
         val = val.slice(1, -1);
       }
-      // -------- DEBUG LOG START --------
-      console.log('Stripped val:', val);
-      // -------- DEBUG LOG END --------
       node.attributes[key] = val;
     }
 

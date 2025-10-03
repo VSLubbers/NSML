@@ -89,21 +89,12 @@ export function resolve(ast: AstNode | null): ResolveResult {
         break;
       case 'entity':
         const props: Record<string, any> = {};
-        // -------- DEBUG LOG START --------
-        console.log('Raw props attribute:', node.attributes.props);
-        // -------- DEBUG LOG END --------
         node.attributes.props?.split(',').forEach(p => {
           p = p.trim();
           if (!p) return;  // Skip empty
-          // -------- DEBUG LOG START --------
-          console.log('Processing prop segment:', p);
-          // -------- DEBUG LOG END --------
           const splitParts = p.split('=');
           const key = splitParts[0].trim();
           const val = splitParts[1]?.trim();  // ? for undefined
-          // -------- DEBUG LOG START --------
-          console.log('Split key:', key, 'val:', val);
-          // -------- DEBUG LOG END --------
           if (!key || val === undefined) {
             errors.push({ type: 'semantic', message: `Invalid prop '${p}' for '${name}'`, line: node.line });
             return;
