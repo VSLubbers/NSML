@@ -70,3 +70,13 @@ export interface EvalResult {
   errors: EvalError[];  // Array of errors
   trace?: string[];  // Optional simulation trace
 }
+
+/**
+ * Token: Basic unit from lexing, with type, value, and position.
+ */
+export interface Token {
+  type: 'openTag' | 'closeTag' | 'selfClose' | 'attribute' | 'text' | 'operator' | 'comment' | 'eof';
+  value: string;
+  line: number;
+  column: number;
+}
