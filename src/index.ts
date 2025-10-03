@@ -6,3 +6,5 @@ export function parseNSML(input: string): any {
 export * from './lexer';
 
 export * from './parser';
+
+export * from './resolver';
