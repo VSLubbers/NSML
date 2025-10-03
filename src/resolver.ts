@@ -1,23 +1,29 @@
 // src/resolver.ts - NSML Symbol Resolution
 
-import { AstNode, SymbolTable, SymbolEntry, Graph, EvalError } from './types';
+import { AstNode, SymbolTable, SymbolEntry, Graph, EvalError, allowedSymbolTypes, SymbolType } from './types';
 
 interface ResolveResult {
   symbols: SymbolTable;
   errors: EvalError[];
 }
 
-export function resolve(ast: AstNode): ResolveResult {
+export function resolve(ast: AstNode | null): ResolveResult {
   const symbols: SymbolTable = new Map();
   const errors: EvalError[] = [];
 
-  function resolveSymbols(node: AstNode) {
+  if (!ast) {
+    errors.push({ type: 'semantic', message: 'Invalid or null AST from parser' });
+    return { symbols, errors };
+  }
+
+  function resolveSymbols(node: AstNode | null) {
+    if (!node) return;
+
     if (node.type === 'symbols') {
       for (const child of node.children) {
         resolveSymbol(child, symbols, errors);
       }
     }
-    // Recurse for nested (though NSML symbols are top-level, support for modularity)
     for (const child of node.children) {
       resolveSymbols(child);
     }
@@ -34,21 +40,32 @@ export function resolve(ast: AstNode): ResolveResult {
       return;
     }
 
+    const attrType = node.attributes.type;
+    let resolvedType: SymbolType = 'any';
+    if (attrType) {
+      if (allowedSymbolTypes.includes(attrType as SymbolType)) {
+        resolvedType = attrType as SymbolType;
+      } else {
+        errors.push({ type: 'semantic', message: `Invalid type '${attrType}' for '${name}'`, line: node.line });
+        return;
+      }
+    }
+
     let entry: SymbolEntry;
     switch (node.type) {
       case 'var':
         entry = {
           kind: 'var',
-          type: node.attributes.type || 'any',
-          value: parseValue(node.attributes.init || node.text || 'undefined', node.attributes.type),
+          type: resolvedType,
+          value: parseValue(node.attributes.init || node.text || 'undefined', resolvedType),
           mutable: true,
         };
         break;
       case 'const':
         entry = {
           kind: 'const',
-          type: node.attributes.type || 'any',
-          value: parseValue(node.attributes.value || node.text || 'undefined', node.attributes.type),
+          type: resolvedType,
+          value: parseValue(node.attributes.value || node.text || 'undefined', resolvedType),
           mutable: false,
         };
         break;
@@ -72,9 +89,30 @@ export function resolve(ast: AstNode): ResolveResult {
         break;
       case 'entity':
         const props: Record<string, any> = {};
+        // -------- DEBUG LOG START --------
+        console.log('Raw props attribute:', node.attributes.props);
+        // -------- DEBUG LOG END --------
         node.attributes.props?.split(',').forEach(p => {
-          const [key, val] = p.split('=').map(s => s.trim());
-          props[key] = parseValue(val?.slice(1, -1) || val, 'any');  // Handle quotes
+          p = p.trim();
+          if (!p) return;  // Skip empty
+          // -------- DEBUG LOG START --------
+          console.log('Processing prop segment:', p);
+          // -------- DEBUG LOG END --------
+          const splitParts = p.split('=');
+          const key = splitParts[0].trim();
+          const val = splitParts[1]?.trim();  // ? for undefined
+          // -------- DEBUG LOG START --------
+          console.log('Split key:', key, 'val:', val);
+          // -------- DEBUG LOG END --------
+          if (!key || val === undefined) {
+            errors.push({ type: 'semantic', message: `Invalid prop '${p}' for '${name}'`, line: node.line });
+            return;
+          }
+          let stripped = val;
+          if (val.startsWith('"') || val.startsWith("'")) {
+            stripped = val.slice(1, -1);
+          }
+          props[key] = parseValue(stripped, 'any');
         });
         entry = { kind: 'entity', type: 'object', value: props, mutable: true };
         break;
@@ -83,20 +121,20 @@ export function resolve(ast: AstNode): ResolveResult {
         return;
     }
 
-    // Basic type check (expand later)
-    if (entry.type !== 'any' && typeof entry.value !== entry.type) {
+    // Basic type check (only for primitives)
+    if (entry.type !== 'any' && ['number', 'string', 'boolean'].includes(entry.type) && typeof entry.value !== entry.type) {
       errors.push({ type: 'semantic', message: `Type mismatch for '${name}'`, line: node.line });
     }
 
     symbols.set(name, entry);
   }
 
-  function parseValue(val: string, type: string): any {
+  function parseValue(val: string, type: SymbolType): any {
     if (val === 'undefined') return undefined;
     switch (type) {
       case 'number': return parseFloat(val);
       case 'boolean': return val.toLowerCase() === 'true';
-      default: return val;  // String or complex
+      default: return val;
     }
   }
 

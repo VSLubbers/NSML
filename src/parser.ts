@@ -26,7 +26,6 @@ class Parser {
     if (this.pos < this.tokens.length) {
       this.errors.push({ type: 'syntax', message: 'Extra content after root', line: this.tokens[this.pos].line });
     }
-    // Fix: Null ast if any errors occurred during parsing
     if (this.errors.length > 0) {
       return { ast: null, errors: this.errors };
     }
@@ -50,8 +49,26 @@ class Parser {
     // Parse attributes
     while (this.peek()?.type === 'attribute') {
       const attr = this.consume('attribute');
-      const [key, val] = attr.value.split('=');
-      node.attributes[key] = val?.slice(1, -1) || '';  // Strip quotes
+      // -------- DEBUG LOG START --------
+      console.log('Parsing attribute raw:', attr.value);
+      // -------- DEBUG LOG END --------
+      const eqIndex = attr.value.indexOf('=');
+      if (eqIndex === -1) {
+        this.errors.push({ type: 'syntax', message: 'Invalid attribute format', line: node.line });
+        continue;
+      }
+      const key = attr.value.substring(0, eqIndex).trim();
+      let val = attr.value.substring(eqIndex + 1).trim();
+      // -------- DEBUG LOG START --------
+      console.log('Split attr key/val:', key, val);
+      // -------- DEBUG LOG END --------
+      if (val.startsWith('"') || val.startsWith("'")) {
+        val = val.slice(1, -1);
+      }
+      // -------- DEBUG LOG START --------
+      console.log('Stripped val:', val);
+      // -------- DEBUG LOG END --------
+      node.attributes[key] = val;
     }
 
     // Self-closing
