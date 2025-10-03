@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>NSML Parser Browser Test</title>
+</head>
+<body>
+  <h1>NSML Parser Test</h1>
+  <script src="dist/nsml-parser.min.js"></script>
+  <script>
+    // Test the global NSMLParser
+    try {
+      const result = NSMLParser.parseNSML('test input');
+      console.log('NSMLParser loaded successfully:', result);
+      document.body.innerHTML += '<p>Success: ' + JSON.stringify(result) + '</p>';
+    } catch (error) {
+      console.error('Error:', error);
+      document.body.innerHTML += '<p>Error: ' + error.message + '</p>';
+    }
+  </script>
+</body>
+</html>
