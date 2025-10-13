@@ -4,26 +4,35 @@
  * AST Node: Represents parsed elements from NSML markup.
  */
 export interface AstNode {
-  type: string;  // e.g., 'var', 'rule', 'query'
-  attributes: Record<string, string>;  // e.g., { name: 'x', type: 'number' }
-  children: AstNode[];  // Nested nodes
-  text?: string;  // Content between tags
-  line: number;  // For error reporting
+  type: string; // e.g., 'var', 'rule', 'query'
+  attributes: Record<string, string>; // e.g., { name: 'x', type: 'number' }
+  children: AstNode[]; // Nested nodes
+  text?: string; // Content between tags
+  line: number; // For error reporting
 }
 
 /**
  * Allowed Symbol Types: Literal union for validation.
  */
-export const allowedSymbolTypes = ['number', 'string', 'boolean', 'list', 'set', 'graph', 'object', 'any'] as const;
-export type SymbolType = typeof allowedSymbolTypes[number];
+export const allowedSymbolTypes = [
+  'number',
+  'string',
+  'boolean',
+  'list',
+  'set',
+  'graph',
+  'object',
+  'any',
+] as const;
+export type SymbolType = (typeof allowedSymbolTypes)[number];
 
 /**
  * Symbol Entry: Details for a symbol (var, const, etc.).
  */
 export interface SymbolEntry {
   kind: 'var' | 'const' | 'set' | 'graph' | 'entity';
-  type: SymbolType;  // Use extracted type
-  value: any;  // Dynamic: number, string, Set<any>, Graph, etc.
+  type: SymbolType; // Use extracted type
+  value: any; // Dynamic: number, string, Set<any>, Graph, etc.
   mutable: boolean;
 }
 
@@ -37,16 +46,35 @@ export type SymbolTable = Map<string, SymbolEntry>;
  */
 export interface Graph {
   nodes: Set<string>;
-  edges: Map<string, Map<string, string>>;  // from -> {relation -> to}
+  edges: Map<string, Map<string, string>>; // from -> {relation -> to}
 }
 
 /**
  * Expression Operators: Supported ops in expressions.
  */
 export type Operator =
-  | '&&' | '||' | '!' | '=>' | '<=>' | '==' | '!='  // Logical
-  | '+' | '-' | '*' | '/' | '%' | '^' | '>=' | '<=' | '>' | '<'  // Arithmetic
-  | 'in' | 'union' | 'intersect' | 'diff' | 'path';  // Set/Graph
+  | '&&'
+  | '||'
+  | '!'
+  | '=>'
+  | '<=>'
+  | '=='
+  | '!=' // Logical
+  | '+'
+  | '-'
+  | '*'
+  | '/'
+  | '%'
+  | '^'
+  | '>='
+  | '<='
+  | '>'
+  | '<' // Arithmetic
+  | 'in'
+  | 'union'
+  | 'intersect'
+  | 'diff'
+  | 'path'; // Set/Graph
 
 /**
  * Expression Node: Tree for parsed expressions.
@@ -55,9 +83,9 @@ export interface ExprNode {
   op?: Operator;
   left?: ExprNode;
   right?: ExprNode;
-  value?: any;  // Literal or symbol reference
-  func?: string;  // For function calls like error(...)
-  args?: ExprNode[];  // Arguments for functions
+  value?: any; // Literal or symbol reference
+  func?: string; // For function calls like error(...)
+  args?: ExprNode[]; // Arguments for functions
 }
 
 /**
@@ -74,16 +102,24 @@ export interface EvalError {
  * Evaluation Result: Output from parser/evaluator.
  */
 export interface EvalResult {
-  results: Record<string, any>;  // Query names to values
-  errors: EvalError[];  // Array of errors
-  trace?: string[];  // Optional simulation trace
+  results: Record<string, any>; // Query names to values
+  errors: EvalError[]; // Array of errors
+  trace?: string[]; // Optional simulation trace
 }
 
 /**
  * Token: Basic unit from lexing, with type, value, and position.
  */
 export interface Token {
-  type: 'openTag' | 'closeTag' | 'selfClose' | 'attribute' | 'text' | 'operator' | 'comment' | 'eof';
+  type:
+    | 'openTag'
+    | 'closeTag'
+    | 'selfClose'
+    | 'attribute'
+    | 'text'
+    | 'operator'
+    | 'comment'
+    | 'eof';
   value: string;
   line: number;
   column: number;
@@ -92,4 +128,7 @@ export interface Token {
 /**
  * Domain Registry: Maps domain tag types to handlers.
  */
-export type DomainRegistry = Map<string, (node: AstNode, context: SymbolTable) => { result: any; error?: EvalError }>;
+export type DomainRegistry = Map<
+  string,
+  (node: AstNode, context: SymbolTable) => { result: any; error?: EvalError }
+>;

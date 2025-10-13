@@ -7,8 +7,7 @@ import { EvalResult } from '../src/types';
 
 describe('NSML Evaluator', () => {
   it('should evaluate simple query', () => {
-    const input = `
-    <nsml>
+    const input = `<nsml>
       <symbols>
         <var name="age" type="number" init="42" />
       </symbols>
@@ -18,8 +17,7 @@ describe('NSML Evaluator', () => {
       <queries>
         <query name="checkAdult">eval(isAdult)</query>
       </queries>
-    </nsml>
-    `;
+    </nsml>`;
     const tokens = lex(input);
     const { ast } = parse(tokens);
     const { symbols } = resolve(ast);
@@ -30,8 +28,7 @@ describe('NSML Evaluator', () => {
   });
 
   it('should handle counterfactual branch', () => {
-    const input = `
-    <nsml>
+    const input = `<nsml>
       <symbols>
         <var name="age" type="number" init="42" />
       </symbols>
@@ -43,8 +40,7 @@ describe('NSML Evaluator', () => {
           <query name="checkAdult">eval(isAdult)</query>
         </counterfactual>
       </queries>
-    </nsml>
-    `;
+    </nsml>`;
     const tokens = lex(input);
     const { ast } = parse(tokens);
     const { symbols } = resolve(ast);
@@ -55,16 +51,14 @@ describe('NSML Evaluator', () => {
   });
 
   it('should perform aggregate in query', () => {
-    const input = `
-    <nsml>
+    const input = `<nsml>
       <symbols>
         <set name="ages" elements="17,42,65" />
       </symbols>
       <queries>
         <aggregate func="count" over="ages" name="total" />
       </queries>
-    </nsml>
-    `;
+    </nsml>`;
     const tokens = lex(input);
     const { ast } = parse(tokens);
     const { symbols } = resolve(ast);
@@ -75,8 +69,7 @@ describe('NSML Evaluator', () => {
   });
 
   it('should generate simulation trace', () => {
-    const input = `
-    <nsml>
+    const input = `<nsml>
       <symbols>
         <var name="x" type="number" init="5" />
       </symbols>
@@ -84,8 +77,7 @@ describe('NSML Evaluator', () => {
         <query name="double">eval(x * 2)</query>
       </queries>
       <simulate steps="trace" target="double" />
-    </nsml>
-    `;
+    </nsml>`;
     const tokens = lex(input);
     const { ast } = parse(tokens);
     const { symbols } = resolve(ast);
@@ -97,16 +89,14 @@ describe('NSML Evaluator', () => {
   });
 
   it('should handle errors and assertions', () => {
-    const input = `
-    <nsml>
+    const input = `<nsml>
       <symbols>
         <var name="x" type="number" init="0" />
       </symbols>
       <assertions>
         <assert>x > 0</assert>
       </assertions>
-    </nsml>
-    `;
+    </nsml>`;
     const tokens = lex(input);
     const { ast } = parse(tokens);
     const { symbols } = resolve(ast);

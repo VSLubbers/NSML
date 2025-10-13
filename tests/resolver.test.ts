@@ -2,7 +2,6 @@ import { resolve } from '../src/resolver';
 import { parse } from '../src/parser';
 import { lex } from '../src/lexer';
 import { SymbolTable, SymbolEntry, Graph, EvalError } from '../src/types';
-
 describe('NSML Symbol Resolver', () => {
   it('should resolve variables and constants', () => {
     const input = `
@@ -20,10 +19,19 @@ describe('NSML Symbol Resolver', () => {
     const { symbols, errors } = resolve(ast);
     expect(errors).toHaveLength(0);
     expect(symbols.size).toBe(2);
-    expect(symbols.get('age')).toMatchObject({ kind: 'var', type: 'number', value: 42, mutable: true });
-    expect(symbols.get('threshold')).toMatchObject({ kind: 'const', type: 'number', value: 18, mutable: false });
+    expect(symbols.get('age')).toMatchObject({
+      kind: 'var',
+      type: 'number',
+      value: 42,
+      mutable: true,
+    });
+    expect(symbols.get('threshold')).toMatchObject({
+      kind: 'const',
+      type: 'number',
+      value: 18,
+      mutable: false,
+    });
   });
-
   it('should resolve sets and graphs', () => {
     const input = `
     <nsml>
@@ -44,7 +52,6 @@ describe('NSML Symbol Resolver', () => {
     expect(graph.nodes).toEqual(new Set(['Alice', 'Bob']));
     expect(graph.edges.get('Alice')?.get('parentOf')).toBe('Bob');
   });
-
   it('should resolve entities with props', () => {
     const input = `
     <nsml>
@@ -53,23 +60,15 @@ describe('NSML Symbol Resolver', () => {
       </symbols>
     </nsml>
     `;
-    // -------- DEBUG LOG START --------
-    console.log('Full test input for entity:', input);
-    // -------- DEBUG LOG END --------
     const tokens = lex(input);
     const { ast, errors: parseErrors } = parse(tokens);
-    if (parseErrors.length > 0) console.log('Parse errors in entity test:', parseErrors);
     expect(parseErrors).toHaveLength(0);
     expect(ast).not.toBeNull();
-    // -------- DEBUG LOG START --------
-    console.log('AST attributes for entity:', ast?.children[0]?.children[0]?.attributes);
-    // -------- DEBUG LOG END --------
     const { symbols, errors } = resolve(ast);
     expect(errors).toHaveLength(0);
     expect(symbols.get('person')?.value).toEqual({ name: 'Alice', age: '42' });
   });
-
-  it('should handle duplicates and type errors', () => {
+  it('should handle duplicates', () => {
     const input = `
     <nsml>
       <symbols>
@@ -83,8 +82,25 @@ describe('NSML Symbol Resolver', () => {
     expect(parseErrors).toHaveLength(0);
     expect(ast).not.toBeNull();
     const { symbols, errors } = resolve(ast);
-    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.length).toBe(1);
     expect(errors[0].message).toMatch(/Duplicate symbol/);
+    expect(symbols.size).toBe(1);
+  });
+  it('should handle type errors', () => {
+    const input = `
+    <nsml>
+      <symbols>
+        <var name="age" type="number" init="forty-two" />
+      </symbols>
+    </nsml>
+    `;
+    const tokens = lex(input);
+    const { ast, errors: parseErrors } = parse(tokens);
+    expect(parseErrors).toHaveLength(0);
+    expect(ast).not.toBeNull();
+    const { symbols, errors } = resolve(ast);
+    expect(errors.length).toBe(1);
+    expect(errors[0].message).toMatch(/Type mismatch/);
     expect(symbols.size).toBe(1);
   });
 });

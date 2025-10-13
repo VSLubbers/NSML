@@ -14,17 +14,27 @@ class Parser {
   private errors: EvalError[] = [];
 
   constructor(tokens: Token[]) {
-    this.tokens = tokens.filter(t => t.type !== 'comment' && t.type !== 'eof');  // Ignore comments/eof
+    this.tokens = tokens.filter(
+      (t) => t.type !== 'comment' && t.type !== 'eof'
+    ); // Ignore comments/eof
   }
 
   parse(): ParseResult {
     if (this.peek()?.type !== 'openTag' || this.peek()?.value !== 'nsml') {
-      this.errors.push({ type: 'syntax', message: 'Root must be <nsml>', line: this.peek()?.line });
+      this.errors.push({
+        type: 'syntax',
+        message: 'Root must be <nsml>',
+        line: this.peek()?.line,
+      });
       return { ast: null, errors: this.errors };
     }
     const root = this.parseElement();
     if (this.pos < this.tokens.length) {
-      this.errors.push({ type: 'syntax', message: 'Extra content after root', line: this.tokens[this.pos].line });
+      this.errors.push({
+        type: 'syntax',
+        message: 'Extra content after root',
+        line: this.tokens[this.pos].line,
+      });
     }
     if (this.errors.length > 0) {
       return { ast: null, errors: this.errors };
@@ -34,7 +44,11 @@ class Parser {
 
   private parseElement(): AstNode | null {
     if (this.peek()?.type !== 'openTag') {
-      this.errors.push({ type: 'syntax', message: 'Expected opening tag', line: this.peek()?.line });
+      this.errors.push({
+        type: 'syntax',
+        message: 'Expected opening tag',
+        line: this.peek()?.line,
+      });
       return null;
     }
 
@@ -51,7 +65,11 @@ class Parser {
       const attr = this.consume('attribute');
       const eqIndex = attr.value.indexOf('=');
       if (eqIndex === -1) {
-        this.errors.push({ type: 'syntax', message: 'Invalid attribute format', line: node.line });
+        this.errors.push({
+          type: 'syntax',
+          message: 'Invalid attribute format',
+          line: node.line,
+        });
         continue;
       }
       const key = attr.value.substring(0, eqIndex).trim();
@@ -72,13 +90,17 @@ class Parser {
     while (this.peek() && this.peek()?.type !== 'closeTag') {
       if (this.peek()?.type === 'text') {
         const text = this.consume('text');
-        node.text = (node.text || '') + text.value.trim();  // Trim for cleanliness
+        node.text = (node.text || '') + text.value.trim(); // Trim for cleanliness
       } else if (this.peek()?.type === 'openTag') {
         const child = this.parseElement();
         if (child) node.children.push(child);
       } else {
-        this.errors.push({ type: 'syntax', message: 'Unexpected token', line: this.peek()?.line });
-        this.pos++;  // Skip invalid
+        this.errors.push({
+          type: 'syntax',
+          message: 'Unexpected token',
+          line: this.peek()?.line,
+        });
+        this.pos++; // Skip invalid
       }
     }
 
@@ -87,7 +109,11 @@ class Parser {
     if (close?.type === 'closeTag' && close.value === node.type) {
       this.consume('closeTag');
     } else {
-      this.errors.push({ type: 'syntax', message: `Expected closing tag for ${node.type}`, line: close?.line || node.line });
+      this.errors.push({
+        type: 'syntax',
+        message: `Expected closing tag for ${node.type}`,
+        line: close?.line || node.line,
+      });
     }
 
     return node;
@@ -103,8 +129,17 @@ class Parser {
       this.pos++;
       return token;
     }
-    this.errors.push({ type: 'syntax', message: `Expected ${expectedType}, got ${token?.type || 'undefined'}`, line: token?.line || 1 });
-    return { type: expectedType, value: '', line: token?.line || 1, column: token?.column || 1 };  // Dummy
+    this.errors.push({
+      type: 'syntax',
+      message: `Expected ${expectedType}, got ${token?.type || 'undefined'}`,
+      line: token?.line || 1,
+    });
+    return {
+      type: expectedType,
+      value: '',
+      line: token?.line || 1,
+      column: token?.column || 1,
+    }; // Dummy
   }
 }
 

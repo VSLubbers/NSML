@@ -1,4 +1,12 @@
-import { AstNode, SymbolTable, SymbolEntry, Graph, ExprNode, Operator, EvalResult } from '../src/types';
+import {
+  AstNode,
+  SymbolTable,
+  SymbolEntry,
+  Graph,
+  ExprNode,
+  Operator,
+  EvalResult,
+} from '../src/types';
 
 describe('Core Data Structures', () => {
   it('should instantiate AstNode correctly', () => {
