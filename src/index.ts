@@ -1,4 +1,4 @@
-// Entry point (placeholder)
+// Entry point
 export function parseNSML(input: string): any {
   return { message: 'NSML Parser Placeholder' };
 }
@@ -7,3 +7,4 @@ export * from './parser';
 export * from './resolver';
 export * from './compiler';
 export * from './evaluator';
+export * from './domains';

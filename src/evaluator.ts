@@ -1,8 +1,9 @@
 // src/evaluator.ts - NSML Evaluation Engine
 
-import { AstNode, SymbolTable, EvalResult, EvalError, ExprNode, SymbolEntry } from './types';
-import { parseExpression, compileRules } from './compiler';
+import { AstNode, SymbolTable, EvalResult, EvalError, ExprNode, SymbolEntry, DomainRegistry } from './types';
+import { parseExpression, compileRules } from './compiler'; // Fix: Added compileRules import
 import { parseValue } from './resolver';
+import { domainRegistry } from './domains';
 
 export function evaluate(ast: AstNode | null, symbols: SymbolTable, rules: Map<string, Function>): EvalResult {
   const results: Record<string, any> = {};
@@ -29,6 +30,23 @@ export function evaluate(ast: AstNode | null, symbols: SymbolTable, rules: Map<s
     const src = node.attributes.src;
     if (src) {
       trace.push(`Importing ${src}`);
+    }
+  }
+
+  // Handle domain-specific tags
+  function handleDomain(node: AstNode, context: SymbolTable) {
+    const handler = domainRegistry.get(node.type);
+    if (handler) {
+      trace.push(`Evaluating domain tag ${node.type}`);
+      const { result, error } = handler(node, context);
+      if (error) {
+        errors.push(error);
+      } else {
+        const name = node.attributes.name || `domain_${node.type}`;
+        results[name] = result;
+      }
+    } else {
+      errors.push({ type: 'semantic', message: `Unknown domain tag '${node.type}'`, line: node.line });
     }
   }
 
@@ -140,6 +158,7 @@ export function evaluate(ast: AstNode | null, symbols: SymbolTable, rules: Map<s
   function traverse(node: AstNode, context: Record<string, any>) {
     console.log('Traversing node type:', node.type);  // Debug: Log traversal
     if (node.type === 'import') handleImport(node);
+    if (domainRegistry.has(node.type)) handleDomain(node, symbols);  // Handle domain tags
     if (node.type === 'queries') node.children.forEach(child => processQuery(child, context));
     if (node.type === 'assertions') node.children.forEach(child => processAssertion(child, context));
     if (node.type === 'counterfactual' || node.type === 'branch') processBranch(node, context);
