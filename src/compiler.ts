@@ -52,7 +52,6 @@ export function compileRules(ast: AstNode | null, symbols: SymbolTable): Compile
       for (const [k, v] of symbols) {
         symbolValues[k] = v.value;
       }
-      console.log(`Rule ${name} context:`, {...symbolValues, ...paramContext});  // Debug: Log rule context
       return evalExpr(tree, {...symbolValues, ...paramContext});
     };
 
@@ -188,8 +187,6 @@ function isIdentifier(token: string): boolean {
 }
 
 function evalExpr(tree: ExprNode, context: any): any {
-  console.log('evalExpr tree:', tree);  // Debug: Log tree in evalExpr
-  console.log('evalExpr context:', context);  // Debug: Log context in evalExpr
   if (tree.value !== undefined) return context[tree.value] || tree.value;
   if (tree.func) {
     const args = tree.args?.map(a => evalExpr(a, context)) || [];
@@ -200,7 +197,6 @@ function evalExpr(tree: ExprNode, context: any): any {
   }
   const right = tree.right ? evalExpr(tree.right, context) : undefined;
   const left = tree.left ? evalExpr(tree.left, context) : undefined;
-  console.log(`evalExpr op ${tree.op} left: ${left}, right: ${right}`);  // Debug: Log op in evalExpr
   switch (tree.op) {
     case '+': return Number(left) + Number(right);
     case '-': return Number(left) - Number(right);
