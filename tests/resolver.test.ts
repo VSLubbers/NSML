@@ -2,6 +2,7 @@ import { resolve } from '../src/resolver';
 import { parse } from '../src/parser';
 import { lex } from '../src/lexer';
 import { SymbolTable, SymbolEntry, Graph, EvalError } from '../src/types';
+
 describe('NSML Symbol Resolver', () => {
   it('should resolve variables and constants', () => {
     const input = `
@@ -19,19 +20,10 @@ describe('NSML Symbol Resolver', () => {
     const { symbols, errors } = resolve(ast);
     expect(errors).toHaveLength(0);
     expect(symbols.size).toBe(2);
-    expect(symbols.get('age')).toMatchObject({
-      kind: 'var',
-      type: 'number',
-      value: 42,
-      mutable: true,
-    });
-    expect(symbols.get('threshold')).toMatchObject({
-      kind: 'const',
-      type: 'number',
-      value: 18,
-      mutable: false,
-    });
+    expect(symbols.get('age')).toMatchObject({ kind: 'var', type: 'number', value: 42, mutable: true });
+    expect(symbols.get('threshold')).toMatchObject({ kind: 'const', type: 'number', value: 18, mutable: false });
   });
+
   it('should resolve sets and graphs', () => {
     const input = `
     <nsml>
@@ -47,11 +39,12 @@ describe('NSML Symbol Resolver', () => {
     expect(ast).not.toBeNull();
     const { symbols, errors } = resolve(ast);
     expect(errors).toHaveLength(0);
-    expect(symbols.get('evens')?.value).toEqual(new Set(['2', '4', '6']));
+    expect(symbols.get('evens')?.value).toEqual(new Set([2, 4, 6]));
     const graph: Graph = symbols.get('family')?.value;
     expect(graph.nodes).toEqual(new Set(['Alice', 'Bob']));
     expect(graph.edges.get('Alice')?.get('parentOf')).toBe('Bob');
   });
+
   it('should resolve entities with props', () => {
     const input = `
     <nsml>
@@ -68,6 +61,42 @@ describe('NSML Symbol Resolver', () => {
     expect(errors).toHaveLength(0);
     expect(symbols.get('person')?.value).toEqual({ name: 'Alice', age: '42' });
   });
+
+  it('should resolve references in values', () => {
+    const input = `
+    <nsml>
+      <symbols>
+        <var name="age" type="number" init="42" />
+        <entity name="person" props="name='Alice', personAge=age" />
+      </symbols>
+    </nsml>
+    `;
+    const tokens = lex(input);
+    const { ast, errors: parseErrors } = parse(tokens);
+    expect(parseErrors).toHaveLength(0);
+    expect(ast).not.toBeNull();
+    const { symbols, errors } = resolve(ast);
+    expect(errors).toHaveLength(0);
+    expect(symbols.get('person')?.value).toEqual({ name: 'Alice', personAge: 42 });
+  });
+
+  it('should error on unresolved references', () => {
+    const input = `
+    <nsml>
+      <symbols>
+        <entity name="person" props="personAge=missing" />
+      </symbols>
+    </nsml>
+    `;
+    const tokens = lex(input);
+    const { ast, errors: parseErrors } = parse(tokens);
+    expect(parseErrors).toHaveLength(0);
+    expect(ast).not.toBeNull();
+    const { symbols, errors } = resolve(ast);
+    expect(errors.length).toBe(1);
+    expect(errors[0].message).toMatch(/Unresolved reference/);
+  });
+
   it('should handle duplicates', () => {
     const input = `
     <nsml>
@@ -86,6 +115,7 @@ describe('NSML Symbol Resolver', () => {
     expect(errors[0].message).toMatch(/Duplicate symbol/);
     expect(symbols.size).toBe(1);
   });
+
   it('should handle type errors', () => {
     const input = `
     <nsml>
@@ -100,7 +130,7 @@ describe('NSML Symbol Resolver', () => {
     expect(ast).not.toBeNull();
     const { symbols, errors } = resolve(ast);
     expect(errors.length).toBe(1);
-    expect(errors[0].message).toMatch(/Type mismatch/);
+    expect(errors[0].message).toMatch(/Invalid number value/);
     expect(symbols.size).toBe(1);
   });
 });
