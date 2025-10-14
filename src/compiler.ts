@@ -1,4 +1,3 @@
-// src/compiler.ts - NSML Rule and Expression Compilation
 import { AstNode, SymbolTable, ExprNode, Operator, EvalError } from './types';
 
 interface CompileResult {
@@ -7,20 +6,13 @@ interface CompileResult {
   errors: EvalError[];
 }
 
-export function compileRules(
-  ast: AstNode | null,
-  symbols: SymbolTable
-): CompileResult {
+export function compileRules(ast: AstNode | null, symbols: SymbolTable): CompileResult {
   const rules = new Map<string, Function>();
   const exprTrees = new Map<string, ExprNode>();
   const errors: EvalError[] = [];
 
   if (!ast) {
-    errors.push({
-      type: 'semantic',
-      message: 'Invalid AST',
-      suggestedFix: 'Check NSML input for syntax errors',
-    });
+    errors.push({ type: 'semantic', message: 'Invalid AST', suggestedFix: 'Check NSML input for syntax errors' });
     return { rules, exprTrees, errors };
   }
 
@@ -37,40 +29,30 @@ export function compileRules(
     }
   }
 
-  function compileRule(
-    node: AstNode,
-    rules: Map<string, Function>,
-    exprTrees: Map<string, ExprNode>,
-    errors: EvalError[]
-  ) {
+  function compileRule(node: AstNode, rules: Map<string, Function>, exprTrees: Map<string, ExprNode>, errors: EvalError[]) {
     const name = node.attributes.name || `anonymous${anonymousCount++}`;
     const exprStr = node.text || node.attributes.body || '';
+
     const tree = parseExpression(exprStr);
     if (!tree) {
-      errors.push({
-        type: 'syntax',
-        message: `Invalid expression in '${name}'`,
-        line: node.line,
-        suggestedFix: 'Verify operators and parentheses in expression',
-      });
+      errors.push({ type: 'syntax', message: `Invalid expression in '${name}'`, line: node.line, suggestedFix: 'Verify operators and parentheses in expression' });
       return;
     }
+
     exprTrees.set(name, tree);
+
     const paramStr = node.attributes.params || '';
-    const params = paramStr
-      .split(',')
-      .map((p) => p.split(':')[0].trim())
-      .filter((p) => p);
+    const params = paramStr.split(',').map(p => p.split(':')[0].trim()).filter(p => p);
+
     const func = (...args: any[]) => {
-      const paramContext = Object.fromEntries(
-        params.map((p, i) => [p, args[i]])
-      );
+      const paramContext = Object.fromEntries(params.map((p, i) => [p, args[i]]));
       const symbolValues: Record<string, any> = {};
       for (const [k, v] of symbols) {
         symbolValues[k] = v.value;
       }
-      return evalExpr(tree, { ...symbolValues, ...paramContext });
+      return evalExpr(tree, {...symbolValues, ...paramContext});
     };
+
     rules.set(name, func);
   }
 
@@ -97,7 +79,7 @@ export function parseExpression(expr: string): ExprNode | null {
     if (isString(token)) return { value: token.slice(1, -1) };
     if (isIdentifier(token)) {
       if (peek() === '(') {
-        consume(); // (
+        consume();  // (
         const args: ExprNode[] = [];
         while (peek() !== ')' && peek() !== undefined) {
           const arg = parseExpressionPart();
@@ -187,9 +169,8 @@ export function parseExpression(expr: string): ExprNode | null {
 }
 
 function tokenizeExpr(expr: string): string[] {
-  return (
-    expr.match(/("[^"]*"|'[^']*'|\d+|[a-zA-Z_]\w*|[&|!=>=<>+*/%^(),-]+)/g) || []
-  );
+  // Match multi-char operators first
+  return expr.match(/("[^"]*"|'[^']*'|\d+|[a-zA-Z_]\w*|>=|<=|==|!=|=>|<=>|&&|\||[!+*/%^(),-<>])/g) || [];
 }
 
 function isNumber(token: string): boolean {
@@ -197,10 +178,7 @@ function isNumber(token: string): boolean {
 }
 
 function isString(token: string): boolean {
-  return (
-    (token.startsWith('"') && token.endsWith('"')) ||
-    (token.startsWith("'") && token.endsWith("'"))
-  );
+  return (token.startsWith('"') && token.endsWith('"')) || (token.startsWith("'") && token.endsWith("'"));
 }
 
 function isIdentifier(token: string): boolean {
@@ -210,66 +188,44 @@ function isIdentifier(token: string): boolean {
 function evalExpr(tree: ExprNode, context: any): any {
   if (tree.value !== undefined) return context[tree.value] || tree.value;
   if (tree.func) {
-    const args = tree.args?.map((a) => evalExpr(a, context)) || [];
+    const args = tree.args?.map(a => evalExpr(a, context)) || [];
     if (tree.func === 'error') {
-      return `error: ${args[0]}`;
+      return { type: 'error', message: args[0] };
     }
     return null;
   }
-  const right = tree.right ? evalExpr(tree.right, context) : undefined;
+  // Short-circuit for logical ops
+  if (tree.op === '&&') {
+    const left = tree.left ? evalExpr(tree.left, context) : undefined;
+    if (!left) return left;
+    return tree.right ? evalExpr(tree.right, context) : undefined;
+  }
+  if (tree.op === '||') {
+    const left = tree.left ? evalExpr(tree.left, context) : undefined;
+    if (left) return left;
+    return tree.right ? evalExpr(tree.right, context) : undefined;
+  }
+  if (tree.op === '=>') {
+    const left = tree.left ? evalExpr(tree.left, context) : undefined;
+    if (!left) return true;
+    return tree.right ? evalExpr(tree.right, context) : undefined;
+  }
   const left = tree.left ? evalExpr(tree.left, context) : undefined;
+  const right = tree.right ? evalExpr(tree.right, context) : undefined;
   switch (tree.op) {
-    case '+':
-      return Number(left) + Number(right);
-    case '-':
-      return Number(left) - Number(right);
-    case '*':
-      return Number(left) * Number(right);
-    case '/':
-      return Number(left) / Number(right);
-    case '%':
-      return Number(left) % Number(right);
-    case '^':
-      return Math.pow(Number(left), Number(right));
-    case '>=':
-      return Number(left) >= Number(right);
-    case '<=':
-      return Number(left) <= Number(right);
-    case '>':
-      return Number(left) > Number(right);
-    case '<':
-      return Number(left) < Number(right);
-    case '==':
-      return left === right;
-    case '!=':
-      return left !== right;
-    case '!':
-      return !right;
-    case '&&':
-      return left && right;
-    case '||':
-      return left || right;
-    case '=>':
-      return !left || right;
-    case '<=>':
-      return (left && right) || (!left && !right);
-    case 'in':
-      if (right instanceof Set) return right.has(left);
-      if (Array.isArray(right)) return right.includes(left);
-      return false;
-    case 'union':
-      if (left instanceof Set && right instanceof Set)
-        return new Set([...left, ...right]);
-      return null;
-    case 'intersect':
-      if (left instanceof Set && right instanceof Set)
-        return new Set([...left].filter((x) => right.has(x)));
-      return null;
-    case 'diff':
-      if (left instanceof Set && right instanceof Set)
-        return new Set([...left].filter((x) => !right.has(x)));
-      return null;
-    default:
-      return null;
+    case '+': return Number(left) + Number(right);
+    case '-': return Number(left) - Number(right);
+    case '*': return Number(left) * Number(right);
+    case '/': return Number(left) / Number(right);
+    case '%': return Number(left) % Number(right);
+    case '^': return Math.pow(Number(left), Number(right));
+    case '>=': return Number(left) >= Number(right);
+    case '<=': return Number(left) <= Number(right);
+    case '>': return Number(left) > Number(right);
+    case '<': return Number(left) < Number(right);
+    case '==': return left === right;
+    case '!=': return left !== right;
+    case '!': return !right;
+    default: return null;
   }
 }

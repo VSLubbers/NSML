@@ -5,6 +5,7 @@ export function lex(input: string): Token[] {
   let pos = 0;
   let line = 1;
   let column = 1;
+  console.log(`Lexer input: ${input}`);
   while (pos < input.length) {
     const char = input[pos];
     // Skip whitespace
@@ -61,7 +62,11 @@ export function lex(input: string): Token[] {
         }
         // Value quote
         const quote = input[pos];
-        if (quote !== '"' && quote !== "'") throw new Error(`Expected quote at line ${line}, column ${column}`);
+        console.log(`Quote at pos ${pos}: ${quote}`);
+        if (quote !== '"' && quote !== "'") {
+          console.log(`Current char before throw: ${input[pos]}`);
+          throw new Error(`Expected quote at line ${line}, column ${column}`);
+        }
         pos++;
         column++;
         // Value
@@ -124,5 +129,6 @@ export function lex(input: string): Token[] {
     throw new Error(`Unexpected character '${char}' at line ${line}, column ${column}`);
   }
   tokens.push({ type: 'eof', value: '', line: line, column: column });
+  console.log(`Tokens: ${JSON.stringify(tokens)}`);
   return tokens;
 }

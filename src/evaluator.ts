@@ -1,4 +1,3 @@
-// src/evaluator.ts - NSML Evaluation Engine
 import { AstNode, SymbolTable, EvalResult, EvalError, ExprNode, SymbolEntry, DomainRegistry } from './types';
 import { parseExpression, compileRules } from './compiler';
 import { parseValue } from './resolver';
@@ -57,22 +56,19 @@ export function evaluate(ast: AstNode | null, symbols: SymbolTable, rules: Map<s
       const val = context[tree.value as string] !== undefined ? context[tree.value as string] : tree.value;
       return val;
     }
-
     if (tree.func) {
       const args = tree.args?.map((a: ExprNode) => evalTree(a, context)) || [];
-      if (tree.func === 'error') return `error: ${args[0]}`;
+      if (tree.func === 'error') return { type: 'error', message: args[0] };
       if (tree.func === 'eval') {
         const ruleName = args[0] as string;
         const ruleTree = exprTrees.get(ruleName);
-        if (ruleTree) return evalTree(ruleTree, context); // Evaluate rule's tree with context
+        if (ruleTree) return evalTree(ruleTree, context);  // Evaluate rule's tree with context
         return null;
       }
       return null;
     }
-
     const left = tree.left ? evalTree(tree.left, context) : undefined;
     const right = tree.right ? evalTree(tree.right, context) : undefined;
-
     switch (tree.op) {
       case '+': return Number(left) + Number(right);
       case '-': return Number(left) - Number(right);
@@ -91,18 +87,17 @@ export function evaluate(ast: AstNode | null, symbols: SymbolTable, rules: Map<s
       case '||': return left || right;
       case '=>': return !left || right;
       case '<=>': return (left && right) || (!left && !right);
-      case 'in':
+      case 'in': 
         if (right instanceof Set) return right.has(left);
         if (Array.isArray(right)) return right.includes(left);
         return false;
-      // Basic set ops (extend as needed)
-      case 'union':
+      case 'union': 
         if (left instanceof Set && right instanceof Set) return new Set([...left, ...right]);
         return null;
-      case 'intersect':
+      case 'intersect': 
         if (left instanceof Set && right instanceof Set) return new Set([...left].filter(x => right.has(x)));
         return null;
-      case 'diff':
+      case 'diff': 
         if (left instanceof Set && right instanceof Set) return new Set([...left].filter(x => !right.has(x)));
         return null;
       default: return null;
@@ -115,7 +110,6 @@ export function evaluate(ast: AstNode | null, symbols: SymbolTable, rules: Map<s
       processBranch(node, context);
       return;
     }
-
     const name = node.attributes.name || 'anonymous';
     const expr = node.attributes.eval || node.text;
     if (expr) {
@@ -126,7 +120,6 @@ export function evaluate(ast: AstNode | null, symbols: SymbolTable, rules: Map<s
         errors.push({ type: 'runtime', message: `Invalid expression in query '${name}'`, line: node.line, suggestedFix: 'Check syntax of expression' });
       }
     }
-
     if (node.type === 'aggregate') {
       const func = node.attributes.func;
       const over = context[node.attributes.over];
@@ -150,7 +143,6 @@ export function evaluate(ast: AstNode | null, symbols: SymbolTable, rules: Map<s
         errors.push({ type: 'runtime', message: `Invalid collection for aggregate '${name}'`, line: node.line });
       }
     }
-
     if (node.type === 'exists' || node.type === 'forall') {
       const collection = context[node.attributes.in];
       const conditionExpr = node.attributes.condition;
@@ -171,9 +163,8 @@ export function evaluate(ast: AstNode | null, symbols: SymbolTable, rules: Map<s
       const items = Array.from(collection);
       let matches = 0;
       for (const item of items) {
-        const itemContext = { ...context, item }; // Assume condition uses 'item' var; adjust if needed
-        const evalResult = evalTree(tree, itemContext);
-        if (evalResult) matches++;
+        const itemContext = { ...context, item }; // Assume condition uses 'item' var
+        if (evalTree(tree, itemContext)) matches++;
       }
       let resultBool: boolean;
       if (node.type === 'exists') {
@@ -183,7 +174,6 @@ export function evaluate(ast: AstNode | null, symbols: SymbolTable, rules: Map<s
       }
       results[name] = countMode ? { result: resultBool, count: matches } : resultBool;
     }
-
     node.children.forEach(child => processQuery(child, context));
   }
 
@@ -198,6 +188,32 @@ export function evaluate(ast: AstNode | null, symbols: SymbolTable, rules: Map<s
     } else {
       errors.push({ type: 'runtime', message: `Invalid assertion expression`, line: node.line, suggestedFix: 'Provide a valid logical expression' });
     }
+  }
+
+  // Process constraints
+  function processConstraint(node: AstNode, context: Record<string, any>) {
+    const expr = node.text || '';
+    const tree = parseExpression(expr);
+    if (tree) {
+      const evalResult = evalTree(tree, context);
+      if (evalResult && evalResult.type === 'error') {
+        errors.push({ type: 'runtime', message: evalResult.message, line: node.line });
+      }
+    } else {
+      errors.push({ type: 'runtime', message: `Invalid constraint expression`, line: node.line, suggestedFix: 'Provide a valid implication => action' });
+    }
+  }
+
+  // Traverse AST for constraints in rules
+  function processAllConstraints(node: AstNode, context: Record<string, any>) {
+    if (node.type === 'rules') {
+      node.children.forEach(child => {
+        if (child.type === 'constraint') {
+          processConstraint(child, context);
+        }
+      });
+    }
+    node.children.forEach(child => processAllConstraints(child, context));
   }
 
   // Process branches/counterfactuals
@@ -223,7 +239,7 @@ export function evaluate(ast: AstNode | null, symbols: SymbolTable, rules: Map<s
   // Traverse AST
   function traverse(node: AstNode, context: Record<string, any>) {
     if (node.type === 'import') handleImport(node);
-    if (domainRegistry.has(node.type)) handleDomain(node, symbols); // Handle domain tags
+    if (domainRegistry.has(node.type)) handleDomain(node, symbols);  // Handle domain tags
     if (node.type === 'queries') node.children.forEach(child => processQuery(child, context));
     if (node.type === 'assertions') node.children.forEach(child => processAssertion(child, context));
     if (node.type === 'counterfactual' || node.type === 'branch') processBranch(node, context);
@@ -231,6 +247,10 @@ export function evaluate(ast: AstNode | null, symbols: SymbolTable, rules: Map<s
     node.children.forEach(child => traverse(child, context));
   }
 
+  // Run constraints pass after symbols but before main traverse
+  processAllConstraints(ast, valueContext);
+
   traverse(ast, valueContext);
+
   return { results, errors, trace };
 }
