@@ -44,8 +44,6 @@ export function compileRules(
   ) {
     const name = node.attributes.name || `anonymous${anonymousCount++}`;
     const exprStr = node.text || node.attributes.body || '';
-    console.log(`Compiling rule '${name}' with expression: ${exprStr}`);
-
     const tree = parseExpression(exprStr);
     if (!tree) {
       errors.push({
@@ -90,9 +88,7 @@ export function compileRules(
 
 export function parseExpression(expr: string): ExprNode | null {
   const tokens = tokenizeExpr(expr);
-  console.log(
-    `Tokenizing expression: ${expr} -> Tokens: ${JSON.stringify(tokens)}`
-  );
+
   let pos = 0;
 
   function peek(): string | undefined {
@@ -101,44 +97,36 @@ export function parseExpression(expr: string): ExprNode | null {
 
   function consume(): string | undefined {
     const token = tokens[pos];
-    console.log(`Consuming token at pos ${pos}: ${token}`);
     return tokens[pos++];
   }
 
   function parsePrimary(): ExprNode | null {
     const token = consume();
     if (!token) {
-      console.log('No token in parsePrimary');
       return null;
     }
 
     if (isNumber(token)) {
-      console.log(`Parsed number: ${token}`);
       return { value: Number(token) };
     }
     if (isString(token)) {
       const value = token.slice(1, -1);
-      console.log(`Parsed string: ${value}`);
       return { value };
     }
     if (token === 'true') {
-      console.log('Parsed boolean: true');
       return { value: true };
     }
     if (token === 'false') {
-      console.log('Parsed boolean: false');
       return { value: false };
     }
     if (isIdentifier(token)) {
       if (peek() === '(') {
         // Function call
-        console.log(`Parsing function call: ${token}`);
         consume(); // (
         const args: ExprNode[] = [];
         while (peek() !== ')' && peek() !== undefined) {
           const arg = parseExpressionPart();
           if (arg) {
-            console.log(`Parsed arg for ${token}: ${JSON.stringify(arg)}`);
             args.push(arg);
           }
           if (peek() === ',') consume();
@@ -146,25 +134,21 @@ export function parseExpression(expr: string): ExprNode | null {
         if (peek() === ')') consume();
         return { func: token, args };
       }
-      console.log(`Parsed identifier: ${token}`);
       return { value: token };
     }
     if (token === '(') {
       const expr = parseExpressionPart();
       if (consume() !== ')') {
-        console.log('Missing closing parenthesis');
         return null;
       }
       return expr;
     }
-    console.log(`Invalid primary token: ${token}`);
     return null;
   }
 
   function parseUnary(): ExprNode | null {
     if (['!', '-'].includes(peek() || '')) {
       const op = consume() as Operator;
-      console.log(`Parsing unary operator: ${op}`);
       const right = parseUnary();
       if (!right) return null;
       return { op, right };
@@ -177,7 +161,6 @@ export function parseExpression(expr: string): ExprNode | null {
     if (!left) return null;
     while (peek() === '^') {
       const op = consume() as Operator;
-      console.log(`Parsing power operator: ${op}`);
       const right = parseUnary();
       if (!right) return null;
       left = { op, left, right };
@@ -190,7 +173,6 @@ export function parseExpression(expr: string): ExprNode | null {
     if (!left) return null;
     while (['*', '/', '%'].includes(peek() || '')) {
       const op = consume() as Operator;
-      console.log(`Parsing multiplicative operator: ${op}`);
       const right = parsePower();
       if (!right) return null;
       left = { op, left, right };
@@ -203,7 +185,6 @@ export function parseExpression(expr: string): ExprNode | null {
     if (!left) return null;
     while (['+', '-', 'union', 'intersect', 'diff'].includes(peek() || '')) {
       const op = consume() as Operator;
-      console.log(`Parsing additive operator: ${op}`);
       const right = parseMultiplicative();
       if (!right) return null;
       left = { op, left, right };
@@ -216,7 +197,6 @@ export function parseExpression(expr: string): ExprNode | null {
     if (!left) return null;
     while (['==', '!=', '>', '>=', '<', '<=', 'in'].includes(peek() || '')) {
       const op = consume() as Operator;
-      console.log(`Parsing comparison operator: ${op}`);
       const right = parseAdditive();
       if (!right) return null;
       left = { op, left, right };
@@ -229,7 +209,6 @@ export function parseExpression(expr: string): ExprNode | null {
     if (!left) return null;
     while (['&&', '||', '=>', '<=>'].includes(peek() || '')) {
       const op = consume() as Operator;
-      console.log(`Parsing logical operator: ${op}`);
       const right = parseComparison();
       if (!right) return null;
       left = { op, left, right };
@@ -239,29 +218,24 @@ export function parseExpression(expr: string): ExprNode | null {
 
   function parseExpressionPart(): ExprNode | null {
     const result = parseLogical();
-    console.log(`Parsed expression: ${JSON.stringify(result)}`);
     return result;
   }
 
   const tree = parseExpressionPart();
   if (pos !== tokens.length) {
-    console.log(`Incomplete parse, remaining tokens: ${tokens.slice(pos)}`);
     return null;
   }
-  console.log(`Final parsed tree: ${JSON.stringify(tree)}`);
   return tree;
 }
 
 function tokenizeExpr(expr: string): string[] {
   const tokens =
     expr.match(/("[^"]"|'[^']'|\d+|[a-zA-Z_]\w*|[&|!=><+*/%^(),-]+)/g) || [];
-  console.log(`Tokenized expression '${expr}' to: ${JSON.stringify(tokens)}`);
   return tokens;
 }
 
 function isNumber(token: string): boolean {
   const isNum = /^\d+$/.test(token);
-  console.log(`Checking if '${token}' is number: ${isNum}`);
   return isNum;
 }
 
@@ -269,13 +243,11 @@ function isString(token: string): boolean {
   const isStr =
     (token.startsWith('"') && token.endsWith('"')) ||
     (token.startsWith("'") && token.endsWith("'"));
-  console.log(`Checking if '${token}' is string: ${isStr}`);
   return isStr;
 }
 
 function isIdentifier(token: string): boolean {
   const isId = /[a-zA-Z_]\w*/.test(token);
-  console.log(`Checking if '${token}' is identifier: ${isId}`);
   return isId;
 }
 
@@ -285,21 +257,16 @@ export function evalExpr(
   errors: EvalError[],
   line: number
 ): any {
-  console.log(
-    `Evaluating tree: ${JSON.stringify(tree)} with context: ${JSON.stringify(context)}`
-  );
+
   if (tree.value !== undefined) {
     const value = context[tree.value] || tree.value;
-    console.log(`Resolved value '${tree.value}' to: ${value}`);
     return value;
   }
 
   if (tree.func) {
     const args =
       tree.args?.map((a) => evalExpr(a, context, errors, line)) || [];
-    console.log(
-      `Evaluating function '${tree.func}' with args: ${JSON.stringify(args)}`
-    );
+
 
     if (tree.func === 'error') {
       return { type: 'error', message: args[0] };
@@ -313,15 +280,11 @@ export function evalExpr(
           line,
           suggestedFix: 'Provide graph, start node, and end node',
         });
-        console.log(
-          `Error: path function requires 3 arguments, got ${args.length}`
-        );
+
         return null;
       }
       const [graph, from, to] = args;
-      console.log(
-        `Path function: graph=${JSON.stringify(graph)}, from=${from}, to=${to}`
-      );
+
       if (
         !(
           graph &&
@@ -338,7 +301,6 @@ export function evalExpr(
           suggestedFix:
             'Ensure first argument is a graph and others are strings',
         });
-        console.log('Error: Invalid path arguments');
         return null;
       }
       // BFS to find path
@@ -346,10 +308,8 @@ export function evalExpr(
       const visited = new Set<string>([from]);
       const parent = new Map<string, string | null>([[from, null]]);
       let found = false;
-      console.log(`Starting BFS from ${from} to ${to}`);
       while (queue.length > 0) {
         const curr = queue.shift()!;
-        console.log(`Visiting node: ${curr}`);
         if (curr === to) {
           found = true;
           break;
@@ -357,10 +317,8 @@ export function evalExpr(
         const neighbors = Array.from(
           graph.edges.get(curr)?.values() || []
         ) as string[];
-        console.log(`Neighbors of ${curr}: ${neighbors}`);
         for (const neigh of neighbors) {
           if (!visited.has(neigh)) {
-            console.log(`Adding neighbor ${neigh} to queue`);
             visited.add(neigh);
             queue.push(neigh);
             parent.set(neigh, curr);
@@ -368,7 +326,6 @@ export function evalExpr(
         }
       }
       if (!found) {
-        console.log(`No path found from ${from} to ${to}`);
         return null;
       }
       // Reconstruct path
@@ -378,7 +335,6 @@ export function evalExpr(
         path.unshift(curr);
         curr = parent.get(curr)!;
       }
-      console.log(`Path found: ${path}`);
       return path;
     }
 
@@ -388,7 +344,6 @@ export function evalExpr(
       line,
       suggestedFix: 'Use supported functions like path or error',
     });
-    console.log(`Error: Unknown function '${tree.func}'`);
     return null;
   }
 
@@ -397,12 +352,10 @@ export function evalExpr(
     const left = tree.left
       ? evalExpr(tree.left, context, errors, line)
       : undefined;
-    console.log(`Evaluating &&: left=${left}`);
     if (!left) return left;
     const right = tree.right
       ? evalExpr(tree.right, context, errors, line)
       : undefined;
-    console.log(`&& right=${right}`);
     return right;
   }
 
@@ -410,12 +363,10 @@ export function evalExpr(
     const left = tree.left
       ? evalExpr(tree.left, context, errors, line)
       : undefined;
-    console.log(`Evaluating ||: left=${left}`);
     if (left) return left;
     const right = tree.right
       ? evalExpr(tree.right, context, errors, line)
       : undefined;
-    console.log(`|| right=${right}`);
     return right;
   }
 
@@ -423,12 +374,10 @@ export function evalExpr(
     const left = tree.left
       ? evalExpr(tree.left, context, errors, line)
       : undefined;
-    console.log(`Evaluating =>: left=${left}`);
     if (!left) return true;
     const right = tree.right
       ? evalExpr(tree.right, context, errors, line)
       : undefined;
-    console.log(`=> right=${right}`);
     return right;
   }
 
@@ -439,7 +388,6 @@ export function evalExpr(
     const right = tree.right
       ? evalExpr(tree.right, context, errors, line)
       : undefined;
-    console.log(`Evaluating <=>: left=${left}, right=${right}`);
     return !!left === !!right;
   }
 
@@ -449,7 +397,6 @@ export function evalExpr(
   const rightVal = tree.right
     ? evalExpr(tree.right, context, errors, line)
     : undefined;
-  console.log(`Evaluating op '${tree.op}': left=${leftVal}, right=${rightVal}`);
 
   switch (tree.op) {
     case '+':
@@ -489,7 +436,6 @@ export function evalExpr(
         line,
         suggestedFix: 'Use a set or list for membership check',
       });
-      console.log(`Error: Invalid 'in' operand, right=${rightVal}`);
       return false;
     case 'union':
       if (leftVal instanceof Set && rightVal instanceof Set)
@@ -500,9 +446,7 @@ export function evalExpr(
         line,
         suggestedFix: 'Ensure both operands are sets',
       });
-      console.log(
-        `Error: Invalid 'union' operands, left=${leftVal}, right=${rightVal}`
-      );
+
       return null;
     case 'intersect':
       if (leftVal instanceof Set && rightVal instanceof Set)
@@ -513,9 +457,7 @@ export function evalExpr(
         line,
         suggestedFix: 'Ensure both operands are sets',
       });
-      console.log(
-        `Error: Invalid 'intersect' operands, left=${leftVal}, right=${rightVal}`
-      );
+
       return null;
     case 'diff':
       if (leftVal instanceof Set && rightVal instanceof Set)
@@ -526,9 +468,7 @@ export function evalExpr(
         line,
         suggestedFix: 'Ensure both operands are sets',
       });
-      console.log(
-        `Error: Invalid 'diff' operands, left=${leftVal}, right=${rightVal}`
-      );
+
       return null;
     default:
       errors.push({
@@ -537,7 +477,6 @@ export function evalExpr(
         line,
         suggestedFix: 'Check supported operators in NSML spec',
       });
-      console.log(`Error: Unsupported operator '${tree.op}'`);
       return null;
   }
 }
