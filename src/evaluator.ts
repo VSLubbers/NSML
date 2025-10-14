@@ -11,6 +11,18 @@ import { parseExpression, compileRules } from './compiler';
 import { parseValue } from './resolver';
 import { domainRegistry } from './domains';
 
+function deepClone(obj: any): any {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (obj instanceof Set) return new Set(obj);
+  if (obj instanceof Map) return new Map(obj);
+  if (Array.isArray(obj)) return obj.map(deepClone);
+  const copy: Record<string, any> = {};
+  for (const key in obj) {
+    copy[key] = deepClone(obj[key]);
+  }
+  return copy;
+}
+
 export function evaluate(
   ast: AstNode | null,
   symbols: SymbolTable,
@@ -30,10 +42,9 @@ export function evaluate(
   }
 
   // Create value context from symbols
-  const valueContext: Record<string, any> = {};
-  for (const [k, v] of symbols) {
-    valueContext[k] = v.value;
-  }
+  const valueContext: Record<string, any> = deepClone(Object.fromEntries(
+    Array.from(symbols, ([k, v]) => [k, v.value])
+  ));
 
   // Get expression trees from compiler
   const { exprTrees } = compileRules(ast, symbols);
@@ -332,24 +343,18 @@ export function evaluate(
   }
 
   // Process branches/counterfactuals
-  function processBranch(node: AstNode, context: Record<string, any>) {
-    const ifStr = node.attributes.if;
-    if (ifStr) {
-      const newContext = { ...context };
-      ifStr.split(',').forEach((ass) => {
-        const [key, val] = ass.split('=').map((s) => s.trim());
-        const existingType = symbols.get(key)?.type || 'any';
-        newContext[key] = parseValue(
-          val,
-          existingType,
-          symbols,
-          errors,
-          node.line
-        );
-      });
-      node.children.forEach((child) => processQuery(child, newContext));
-    }
+function processBranch(node: AstNode, context: Record<string, any>) {
+  const ifStr = node.attributes.if;
+  if (ifStr) {
+    const newContext = deepClone(context);
+    ifStr.split(',').forEach(ass => {
+      const [key, val] = ass.split('=').map(s => s.trim());
+      const existingType = symbols.get(key)?.type || 'any';
+      newContext[key] = parseValue(val, existingType, symbols, errors, node.line);
+    });
+    node.children.forEach(child => processQuery(child, newContext));
   }
+}
 
   // Simulate trace
   function processSimulate(node: AstNode) {
