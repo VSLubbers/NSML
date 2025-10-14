@@ -1,5 +1,7 @@
 // src/domains.ts - Domain-Specific Hooks for NSML
-import { AstNode, SymbolTable, EvalError } from './types';
+import { AstNode, SymbolTable, EvalError, ExprNode } from './types';
+import { parseExpression, evalExpr } from './compiler';
+
 // Registry: Map of domain tag types to handler functions
 export const domainRegistry = new Map<
   string,
@@ -248,6 +250,66 @@ function squareToCoord(square: string): [number, number] {
 // Helper: Convert coord to square
 function coordToSquare(x: number, y: number): string {
   return String.fromCharCode('a'.charCodeAt(0) + x) + (8 - y);
+}
+// Math hook - Sympy-like evaluation for arithmetic expressions and simple equations
+// Supports evaluating expressions with variables from SymbolTable, solving linear equations (e.g., '2x + 3 = 7').
+// Uses existing parseExpression and evalExpr for basic arithmetic; adds simple solver for equations.
+domainRegistry.set('math', (node: AstNode, context: SymbolTable) => {
+  let expression = node.attributes.expression || node.text || '';
+  if (!expression) {
+    return { result: null, error: { type: 'semantic', message: 'Missing expression attribute or text', line: node.line } };
+  }
+  // Pre-process for implicit multiplication (e.g., '2x' -> '2*x')
+  expression = expression.replace(/(\d)([a-zA-Z_])/g, '$1*$2');
+  const valueContext: Record<string, any> = {};
+  for (const [k, v] of context) {
+    valueContext[k] = v.value;
+  }
+  if (expression.includes('=')) { // Solve equation
+    const [left, right] = expression.split('=').map(s => s.trim());
+    const leftTree = parseExpression(left);
+    const rightTree = parseExpression(right);
+    if (!leftTree || !rightTree) {
+      return { result: null, error: { type: 'syntax', message: 'Invalid equation format', line: node.line } };
+    }
+    const c = evalExpr(rightTree, valueContext, [], node.line);
+    const { a, b } = getLinearTerms(leftTree, 'x');
+    if (a === 0) {
+      return { result: null, error: { type: 'runtime', message: 'Non-linear or no variable equation', line: node.line } };
+    }
+    const x = (c - b) / a;
+    return { result: { x } };
+  } else { // Evaluate expression
+    const tree = parseExpression(expression);
+    if (!tree) {
+      return { result: null, error: { type: 'syntax', message: 'Invalid math expression', line: node.line } };
+    }
+    const result = evalExpr(tree, valueContext, [], node.line);
+    return { result };
+  }
+});
+// Helper for math: Extract coefficient a and constant b for ax + b
+function getLinearTerms(tree: ExprNode, varName: string): { a: number; b: number } {
+  if (tree.value !== undefined) {
+    if (tree.value === varName) return { a: 1, b: 0 };
+    if (typeof tree.value === 'number') return { a: 0, b: tree.value };
+    return { a: 0, b: 0 };
+  }
+  if (tree.op === '+') {
+    const left = getLinearTerms(tree.left!, varName);
+    const right = getLinearTerms(tree.right!, varName);
+    return { a: left.a + right.a, b: left.b + right.b };
+  }
+  if (tree.op === '-') {
+    const left = getLinearTerms(tree.left!, varName);
+    const right = getLinearTerms(tree.right!, varName);
+    return { a: left.a - right.a, b: left.b - right.b };
+  }
+  if (tree.op === '*') {
+    if (tree.left?.value === varName && typeof tree.right?.value === 'number') return { a: tree.right.value, b: 0 };
+    if (tree.right?.value === varName && typeof tree.left?.value === 'number') return { a: tree.left.value, b: 0 };
+  }
+  return { a: 0, b: 0 }; // Unsupported
 }
 // Extensibility: Users can register custom domains
 export function registerDomain(

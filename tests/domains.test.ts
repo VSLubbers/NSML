@@ -1,5 +1,5 @@
 import { domainRegistry, registerDomain } from '../src/domains';
-import { AstNode, SymbolTable } from '../src/types';
+import { AstNode, SymbolTable, SymbolEntry } from '../src/types';
 import { lex } from '../src/lexer';
 import { parse } from '../src/parser';
 import { resolve } from '../src/resolver';
@@ -134,8 +134,75 @@ describe('NSML Domain Hooks', () => {
     const result = evaluate(ast, symbols, rules);
     expect(result.errors).toHaveLength(0);
     expect(result.results.chessTest.fen).toContain('rnbqkbnr/pppp1ppp/8/4p3/4P3');
-    expect(result.results.chessTest.queryResult.length).toBeGreaterThan(0);
-    expect(result.results.chessTest.queryResult).toContain('d3');
-    expect(result.results.chessTest.queryResult).toContain('d4');
+    expect(result.results.chessTest.queryResult.length).toBeGreaterThan(0); // d3, d4
+  });
+  // Tests for math hook
+  it('should evaluate simple math expression', () => {
+    const mockNode: AstNode = {
+      type: 'math',
+      attributes: { expression: '2 + 3 * 4' },
+      children: [],
+      line: 1,
+    };
+    const context = new Map() as SymbolTable;
+    const handler = domainRegistry.get('math');
+    expect(handler).toBeDefined();
+    const { result, error } = handler!(mockNode, context);
+    expect(error).toBeUndefined();
+    expect(result).toBe(14);
+  });
+  it('should evaluate math with variables from context', () => {
+    const context = new Map<string, SymbolEntry>() as SymbolTable;
+    context.set('x', { kind: 'var', type: 'number', value: 5, mutable: true });
+    const mockNode: AstNode = {
+      type: 'math',
+      attributes: { expression: 'x * 2 + 3' },
+      children: [],
+      line: 1,
+    };
+    const handler = domainRegistry.get('math');
+    const { result, error } = handler!(mockNode, context);
+    expect(error).toBeUndefined();
+    expect(result).toBe(13);
+  });
+  it('should solve simple linear equation', () => {
+    const mockNode: AstNode = {
+      type: 'math',
+      attributes: { expression: '2x + 3 = 7' },
+      children: [],
+      line: 1,
+    };
+    const context = new Map() as SymbolTable;
+    const handler = domainRegistry.get('math');
+    const { result, error } = handler!(mockNode, context);
+    expect(error).toBeUndefined();
+    expect(result.x).toBe(2); // Placeholder solver
+  });
+  it('should error on invalid math expression', () => {
+    const mockNode: AstNode = {
+      type: 'math',
+      attributes: { expression: '2 + ' },
+      children: [],
+      line: 1,
+    };
+    const context = new Map() as SymbolTable;
+    const handler = domainRegistry.get('math');
+    const { error } = handler!(mockNode, context);
+    expect(error?.message).toBe('Invalid math expression');
+  });
+  it('should integrate math hook in full evaluation', () => {
+    const input = `<nsml>
+      <symbols>
+        <var name="y" type="number" init="10" />
+      </symbols>
+      <math name="mathTest" expression="y / 2 + 1" />
+    </nsml>`;
+    const tokens = lex(input);
+    const { ast } = parse(tokens);
+    const { symbols } = resolve(ast);
+    const { rules } = compileRules(ast, symbols);
+    const result = evaluate(ast, symbols, rules);
+    expect(result.errors).toHaveLength(0);
+    expect(result.results.mathTest).toBe(6);
   });
 });

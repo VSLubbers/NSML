@@ -87,6 +87,7 @@ export function compileRules(
 }
 
 export function parseExpression(expr: string): ExprNode | null {
+  expr = expr.replace(/(\d)([a-zA-Z_])/g, '$1*$2');
   const tokens = tokenizeExpr(expr);
 
   let pos = 0;
