@@ -6,7 +6,10 @@ interface CompileResult {
   errors: EvalError[];
 }
 
-export function compileRules(ast: AstNode | null, symbols: SymbolTable): CompileResult {
+export function compileRules(
+  ast: AstNode | null,
+  symbols: SymbolTable
+): CompileResult {
   const rules = new Map<string, Function>();
   const exprTrees = new Map<string, ExprNode>();
   const errors: EvalError[] = [];
@@ -15,7 +18,7 @@ export function compileRules(ast: AstNode | null, symbols: SymbolTable): Compile
     errors.push({
       type: 'semantic',
       message: 'Invalid AST',
-      suggestedFix: 'Check NSML input for syntax errors'
+      suggestedFix: 'Check NSML input for syntax errors',
     });
     return { rules, exprTrees, errors };
   }
@@ -49,7 +52,7 @@ export function compileRules(ast: AstNode | null, symbols: SymbolTable): Compile
         type: 'syntax',
         message: `Invalid expression in '${name}'`,
         line: node.line,
-        suggestedFix: 'Verify operators and parentheses in expression'
+        suggestedFix: 'Verify operators and parentheses in expression',
       });
       return;
     }
@@ -57,15 +60,25 @@ export function compileRules(ast: AstNode | null, symbols: SymbolTable): Compile
     exprTrees.set(name, tree);
 
     const paramStr = node.attributes.params || '';
-    const params = paramStr.split(',').map(p => p.split(':')[0].trim()).filter(p => p);
+    const params = paramStr
+      .split(',')
+      .map((p) => p.split(':')[0].trim())
+      .filter((p) => p);
 
     const func = (...args: any[]) => {
-      const paramContext = Object.fromEntries(params.map((p, i) => [p, args[i]]));
+      const paramContext = Object.fromEntries(
+        params.map((p, i) => [p, args[i]])
+      );
       const symbolValues: Record<string, any> = {};
       for (const [k, v] of symbols) {
         symbolValues[k] = v.value;
       }
-      return evalExpr(tree, { ...symbolValues, ...paramContext }, errors, node.line);
+      return evalExpr(
+        tree,
+        { ...symbolValues, ...paramContext },
+        errors,
+        node.line
+      );
     };
 
     rules.set(name, func);
@@ -77,7 +90,9 @@ export function compileRules(ast: AstNode | null, symbols: SymbolTable): Compile
 
 export function parseExpression(expr: string): ExprNode | null {
   const tokens = tokenizeExpr(expr);
-  console.log(`Tokenizing expression: ${expr} -> Tokens: ${JSON.stringify(tokens)}`);
+  console.log(
+    `Tokenizing expression: ${expr} -> Tokens: ${JSON.stringify(tokens)}`
+  );
   let pos = 0;
 
   function peek(): string | undefined {
@@ -238,7 +253,8 @@ export function parseExpression(expr: string): ExprNode | null {
 }
 
 function tokenizeExpr(expr: string): string[] {
-  const tokens = expr.match(/("[^"]"|'[^']'|\d+|[a-zA-Z_]\w*|[&|!=><+*/%^(),-]+)/g) || [];
+  const tokens =
+    expr.match(/("[^"]"|'[^']'|\d+|[a-zA-Z_]\w*|[&|!=><+*/%^(),-]+)/g) || [];
   console.log(`Tokenized expression '${expr}' to: ${JSON.stringify(tokens)}`);
   return tokens;
 }
@@ -250,7 +266,9 @@ function isNumber(token: string): boolean {
 }
 
 function isString(token: string): boolean {
-  const isStr = (token.startsWith('"') && token.endsWith('"')) || (token.startsWith("'") && token.endsWith("'"));
+  const isStr =
+    (token.startsWith('"') && token.endsWith('"')) ||
+    (token.startsWith("'") && token.endsWith("'"));
   console.log(`Checking if '${token}' is string: ${isStr}`);
   return isStr;
 }
@@ -261,8 +279,15 @@ function isIdentifier(token: string): boolean {
   return isId;
 }
 
-export function evalExpr(tree: ExprNode, context: any, errors: EvalError[], line: number): any {
-  console.log(`Evaluating tree: ${JSON.stringify(tree)} with context: ${JSON.stringify(context)}`);
+export function evalExpr(
+  tree: ExprNode,
+  context: any,
+  errors: EvalError[],
+  line: number
+): any {
+  console.log(
+    `Evaluating tree: ${JSON.stringify(tree)} with context: ${JSON.stringify(context)}`
+  );
   if (tree.value !== undefined) {
     const value = context[tree.value] || tree.value;
     console.log(`Resolved value '${tree.value}' to: ${value}`);
@@ -270,8 +295,11 @@ export function evalExpr(tree: ExprNode, context: any, errors: EvalError[], line
   }
 
   if (tree.func) {
-    const args = tree.args?.map(a => evalExpr(a, context, errors, line)) || [];
-    console.log(`Evaluating function '${tree.func}' with args: ${JSON.stringify(args)}`);
+    const args =
+      tree.args?.map((a) => evalExpr(a, context, errors, line)) || [];
+    console.log(
+      `Evaluating function '${tree.func}' with args: ${JSON.stringify(args)}`
+    );
 
     if (tree.func === 'error') {
       return { type: 'error', message: args[0] };
@@ -283,19 +311,32 @@ export function evalExpr(tree: ExprNode, context: any, errors: EvalError[], line
           type: 'runtime',
           message: 'path function requires 3 arguments (graph, start, end)',
           line,
-          suggestedFix: 'Provide graph, start node, and end node'
+          suggestedFix: 'Provide graph, start node, and end node',
         });
-        console.log(`Error: path function requires 3 arguments, got ${args.length}`);
+        console.log(
+          `Error: path function requires 3 arguments, got ${args.length}`
+        );
         return null;
       }
       const [graph, from, to] = args;
-      console.log(`Path function: graph=${JSON.stringify(graph)}, from=${from}, to=${to}`);
-      if (!(graph && graph.nodes instanceof Set && graph.edges instanceof Map && typeof from === 'string' && typeof to === 'string')) {
+      console.log(
+        `Path function: graph=${JSON.stringify(graph)}, from=${from}, to=${to}`
+      );
+      if (
+        !(
+          graph &&
+          graph.nodes instanceof Set &&
+          graph.edges instanceof Map &&
+          typeof from === 'string' &&
+          typeof to === 'string'
+        )
+      ) {
         errors.push({
           type: 'runtime',
           message: 'Invalid arguments for path function',
           line,
-          suggestedFix: 'Ensure first argument is a graph and others are strings'
+          suggestedFix:
+            'Ensure first argument is a graph and others are strings',
         });
         console.log('Error: Invalid path arguments');
         return null;
@@ -313,7 +354,9 @@ export function evalExpr(tree: ExprNode, context: any, errors: EvalError[], line
           found = true;
           break;
         }
-        const neighbors = Array.from(graph.edges.get(curr)?.values() || []) as string[];
+        const neighbors = Array.from(
+          graph.edges.get(curr)?.values() || []
+        ) as string[];
         console.log(`Neighbors of ${curr}: ${neighbors}`);
         for (const neigh of neighbors) {
           if (!visited.has(neigh)) {
@@ -343,7 +386,7 @@ export function evalExpr(tree: ExprNode, context: any, errors: EvalError[], line
       type: 'runtime',
       message: `Unknown function '${tree.func}'`,
       line,
-      suggestedFix: 'Use supported functions like path or error'
+      suggestedFix: 'Use supported functions like path or error',
     });
     console.log(`Error: Unknown function '${tree.func}'`);
     return null;
@@ -351,41 +394,61 @@ export function evalExpr(tree: ExprNode, context: any, errors: EvalError[], line
 
   // Short-circuit for logical ops
   if (tree.op === '&&') {
-    const left = tree.left ? evalExpr(tree.left, context, errors, line) : undefined;
+    const left = tree.left
+      ? evalExpr(tree.left, context, errors, line)
+      : undefined;
     console.log(`Evaluating &&: left=${left}`);
     if (!left) return left;
-    const right = tree.right ? evalExpr(tree.right, context, errors, line) : undefined;
+    const right = tree.right
+      ? evalExpr(tree.right, context, errors, line)
+      : undefined;
     console.log(`&& right=${right}`);
     return right;
   }
 
   if (tree.op === '||') {
-    const left = tree.left ? evalExpr(tree.left, context, errors, line) : undefined;
+    const left = tree.left
+      ? evalExpr(tree.left, context, errors, line)
+      : undefined;
     console.log(`Evaluating ||: left=${left}`);
     if (left) return left;
-    const right = tree.right ? evalExpr(tree.right, context, errors, line) : undefined;
+    const right = tree.right
+      ? evalExpr(tree.right, context, errors, line)
+      : undefined;
     console.log(`|| right=${right}`);
     return right;
   }
 
   if (tree.op === '=>') {
-    const left = tree.left ? evalExpr(tree.left, context, errors, line) : undefined;
+    const left = tree.left
+      ? evalExpr(tree.left, context, errors, line)
+      : undefined;
     console.log(`Evaluating =>: left=${left}`);
     if (!left) return true;
-    const right = tree.right ? evalExpr(tree.right, context, errors, line) : undefined;
+    const right = tree.right
+      ? evalExpr(tree.right, context, errors, line)
+      : undefined;
     console.log(`=> right=${right}`);
     return right;
   }
 
   if (tree.op === '<=>') {
-    const left = tree.left ? evalExpr(tree.left, context, errors, line) : undefined;
-    const right = tree.right ? evalExpr(tree.right, context, errors, line) : undefined;
+    const left = tree.left
+      ? evalExpr(tree.left, context, errors, line)
+      : undefined;
+    const right = tree.right
+      ? evalExpr(tree.right, context, errors, line)
+      : undefined;
     console.log(`Evaluating <=>: left=${left}, right=${right}`);
     return !!left === !!right;
   }
 
-  const leftVal = tree.left ? evalExpr(tree.left, context, errors, line) : undefined;
-  const rightVal = tree.right ? evalExpr(tree.right, context, errors, line) : undefined;
+  const leftVal = tree.left
+    ? evalExpr(tree.left, context, errors, line)
+    : undefined;
+  const rightVal = tree.right
+    ? evalExpr(tree.right, context, errors, line)
+    : undefined;
   console.log(`Evaluating op '${tree.op}': left=${leftVal}, right=${rightVal}`);
 
   switch (tree.op) {
@@ -424,46 +487,55 @@ export function evalExpr(tree: ExprNode, context: any, errors: EvalError[], line
         type: 'runtime',
         message: 'Right operand of "in" must be a set or array',
         line,
-        suggestedFix: 'Use a set or list for membership check'
+        suggestedFix: 'Use a set or list for membership check',
       });
       console.log(`Error: Invalid 'in' operand, right=${rightVal}`);
       return false;
     case 'union':
-      if (leftVal instanceof Set && rightVal instanceof Set) return new Set([...leftVal, ...rightVal]);
+      if (leftVal instanceof Set && rightVal instanceof Set)
+        return new Set([...leftVal, ...rightVal]);
       errors.push({
         type: 'runtime',
         message: 'Operands of "union" must be sets',
         line,
-        suggestedFix: 'Ensure both operands are sets'
+        suggestedFix: 'Ensure both operands are sets',
       });
-      console.log(`Error: Invalid 'union' operands, left=${leftVal}, right=${rightVal}`);
+      console.log(
+        `Error: Invalid 'union' operands, left=${leftVal}, right=${rightVal}`
+      );
       return null;
     case 'intersect':
-      if (leftVal instanceof Set && rightVal instanceof Set) return new Set([...leftVal].filter(x => rightVal.has(x)));
+      if (leftVal instanceof Set && rightVal instanceof Set)
+        return new Set([...leftVal].filter((x) => rightVal.has(x)));
       errors.push({
         type: 'runtime',
         message: 'Operands of "intersect" must be sets',
         line,
-        suggestedFix: 'Ensure both operands are sets'
+        suggestedFix: 'Ensure both operands are sets',
       });
-      console.log(`Error: Invalid 'intersect' operands, left=${leftVal}, right=${rightVal}`);
+      console.log(
+        `Error: Invalid 'intersect' operands, left=${leftVal}, right=${rightVal}`
+      );
       return null;
     case 'diff':
-      if (leftVal instanceof Set && rightVal instanceof Set) return new Set([...leftVal].filter(x => !rightVal.has(x)));
+      if (leftVal instanceof Set && rightVal instanceof Set)
+        return new Set([...leftVal].filter((x) => !rightVal.has(x)));
       errors.push({
         type: 'runtime',
         message: 'Operands of "diff" must be sets',
         line,
-        suggestedFix: 'Ensure both operands are sets'
+        suggestedFix: 'Ensure both operands are sets',
       });
-      console.log(`Error: Invalid 'diff' operands, left=${leftVal}, right=${rightVal}`);
+      console.log(
+        `Error: Invalid 'diff' operands, left=${leftVal}, right=${rightVal}`
+      );
       return null;
     default:
       errors.push({
         type: 'runtime',
         message: `Unsupported operator '${tree.op}'`,
         line,
-        suggestedFix: 'Check supported operators in NSML spec'
+        suggestedFix: 'Check supported operators in NSML spec',
       });
       console.log(`Error: Unsupported operator '${tree.op}'`);
       return null;

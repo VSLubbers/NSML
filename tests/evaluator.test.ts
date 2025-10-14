@@ -123,7 +123,7 @@ describe('NSML Evaluator', () => {
     const { rules } = compileRules(ast, symbols);
     const result: EvalResult = evaluate(ast, symbols, rules);
     expect(result.errors.length).toBe(1);
-    expect(result.errors[0].message).toBe("Underage");
+    expect(result.errors[0].message).toBe('Underage');
   });
 
   it('should pass valid constraints without errors', () => {

@@ -189,7 +189,9 @@ describe('NSML Rule Compiler', () => {
     const result = evalExpr(tree!, context, errors, 1);
     expect(result).toBe(false);
     expect(errors).toHaveLength(1);
-    expect(errors[0].message).toMatch(/Right operand of "in" must be a set or array/);
+    expect(errors[0].message).toMatch(
+      /Right operand of "in" must be a set or array/
+    );
   });
 
   it('should handle invalid path function arguments', () => {

@@ -20,8 +20,18 @@ describe('NSML Symbol Resolver', () => {
     const { symbols, errors } = resolve(ast);
     expect(errors).toHaveLength(0);
     expect(symbols.size).toBe(2);
-    expect(symbols.get('age')).toMatchObject({ kind: 'var', type: 'number', value: 42, mutable: true });
-    expect(symbols.get('threshold')).toMatchObject({ kind: 'const', type: 'number', value: 18, mutable: false });
+    expect(symbols.get('age')).toMatchObject({
+      kind: 'var',
+      type: 'number',
+      value: 42,
+      mutable: true,
+    });
+    expect(symbols.get('threshold')).toMatchObject({
+      kind: 'const',
+      type: 'number',
+      value: 18,
+      mutable: false,
+    });
   });
 
   it('should resolve sets and graphs', () => {
@@ -77,7 +87,10 @@ describe('NSML Symbol Resolver', () => {
     expect(ast).not.toBeNull();
     const { symbols, errors } = resolve(ast);
     expect(errors).toHaveLength(0);
-    expect(symbols.get('person')?.value).toEqual({ name: 'Alice', personAge: 42 });
+    expect(symbols.get('person')?.value).toEqual({
+      name: 'Alice',
+      personAge: 42,
+    });
   });
 
   it('should error on unresolved references', () => {
