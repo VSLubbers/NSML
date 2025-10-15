@@ -168,17 +168,27 @@ export function evaluate(
         return path;
       }
       if (tree.func === 'eval') {
-        if (typeof args[0] === 'string') {
-          const ruleTree = exprTrees.get(args[0]);
+        if (args.length !== 1) {
+          errors.push({
+            type: 'runtime',
+            message: 'eval function requires 1 argument',
+            line: tree.line || 0,
+          });
+          return null;
+        }
+        const arg = args[0];
+        if (typeof arg === 'string') {
+          const ruleTree = exprTrees.get(arg);
           if (ruleTree) return evalTree(ruleTree, context);
           errors.push({
             type: 'runtime',
-            message: `Unknown rule '${args[0]}'`,
+            message: `Unknown rule '${arg}'`,
             line: tree.line || 0,
           });
           return null;
         } else {
-          return args[0]; // Direct evaluated expression
+          // Direct expression evaluation
+          return arg; // Since arg is already evalTree'd
         }
       }
       // General user-defined function call
@@ -190,7 +200,7 @@ export function evaluate(
         type: 'runtime',
         message: `Unknown function '${tree.func}'`,
         line: tree.line || 0,
-        suggestedFix: 'Define the function in <rules>',
+        suggestedFix: 'Use supported functions like path or error',
       });
       return null;
     }
