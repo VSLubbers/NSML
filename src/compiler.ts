@@ -1,3 +1,4 @@
+// src/compiler.ts
 import { AstNode, SymbolTable, ExprNode, Operator, EvalError } from './types';
 
 interface CompileResult {
@@ -44,7 +45,7 @@ export function compileRules(
   ) {
     const name = node.attributes.name || `anonymous${anonymousCount++}`;
     const exprStr = node.text || node.attributes.body || '';
-    const tree = parseExpression(exprStr);
+    const tree = parseExpression(exprStr, node.line); // Pass line to parseExpression
     if (!tree) {
       errors.push({
         type: 'syntax',
@@ -86,7 +87,7 @@ export function compileRules(
   return { rules, exprTrees, errors };
 }
 
-export function parseExpression(expr: string): ExprNode | null {
+export function parseExpression(expr: string, line?: number): ExprNode | null { // Added line param
   expr = expr.replace(/(\d)([a-zA-Z_])/g, '$1*$2');
   const tokens = tokenizeExpr(expr);
 
@@ -108,17 +109,17 @@ export function parseExpression(expr: string): ExprNode | null {
     }
 
     if (isNumber(token)) {
-      return { value: Number(token) };
+      return { value: Number(token), line };
     }
     if (isString(token)) {
       const value = token.slice(1, -1);
-      return { value };
+      return { value, line };
     }
     if (token === 'true') {
-      return { value: true };
+      return { value: true, line };
     }
     if (token === 'false') {
-      return { value: false };
+      return { value: false, line };
     }
     if (isIdentifier(token)) {
       if (peek() === '(') {
@@ -133,9 +134,9 @@ export function parseExpression(expr: string): ExprNode | null {
           if (peek() === ',') consume();
         }
         if (peek() === ')') consume();
-        return { func: token, args };
+        return { func: token, args, line };
       }
-      return { value: token };
+      return { value: token, line };
     }
     if (token === '(') {
       const expr = parseExpressionPart();
@@ -152,7 +153,7 @@ export function parseExpression(expr: string): ExprNode | null {
       const op = consume() as Operator;
       const right = parseUnary();
       if (!right) return null;
-      return { op, right };
+      return { op, right, line };
     }
     return parsePrimary();
   }
@@ -164,7 +165,7 @@ export function parseExpression(expr: string): ExprNode | null {
       const op = consume() as Operator;
       const right = parseUnary();
       if (!right) return null;
-      left = { op, left, right };
+      left = { op, left, right, line };
     }
     return left;
   }
@@ -176,7 +177,7 @@ export function parseExpression(expr: string): ExprNode | null {
       const op = consume() as Operator;
       const right = parsePower();
       if (!right) return null;
-      left = { op, left, right };
+      left = { op, left, right, line };
     }
     return left;
   }
@@ -188,7 +189,7 @@ export function parseExpression(expr: string): ExprNode | null {
       const op = consume() as Operator;
       const right = parseMultiplicative();
       if (!right) return null;
-      left = { op, left, right };
+      left = { op, left, right, line };
     }
     return left;
   }
@@ -200,7 +201,7 @@ export function parseExpression(expr: string): ExprNode | null {
       const op = consume() as Operator;
       const right = parseAdditive();
       if (!right) return null;
-      left = { op, left, right };
+      left = { op, left, right, line };
     }
     return left;
   }
@@ -212,7 +213,7 @@ export function parseExpression(expr: string): ExprNode | null {
       const op = consume() as Operator;
       const right = parseComparison();
       if (!right) return null;
-      left = { op, left, right };
+      left = { op, left, right, line };
     }
     return left;
   }
@@ -258,21 +259,16 @@ export function evalExpr(
   errors: EvalError[],
   line: number
 ): any {
-
   if (tree.value !== undefined) {
     const value = context[tree.value] || tree.value;
     return value;
   }
-
   if (tree.func) {
     const args =
       tree.args?.map((a) => evalExpr(a, context, errors, line)) || [];
-
-
     if (tree.func === 'error') {
       return { type: 'error', message: args[0] };
     }
-
     if (tree.func === 'path') {
       if (args.length !== 3) {
         errors.push({
@@ -281,11 +277,9 @@ export function evalExpr(
           line,
           suggestedFix: 'Provide graph, start node, and end node',
         });
-
         return null;
       }
       const [graph, from, to] = args;
-
       if (
         !(
           graph &&
@@ -338,16 +332,14 @@ export function evalExpr(
       }
       return path;
     }
-
     errors.push({
       type: 'runtime',
       message: `Unknown function '${tree.func}'`,
       line,
-      suggestedFix: 'Use supported functions like path or error',
+      suggestedFix: 'Check supported functions in NSML spec',
     });
     return null;
   }
-
   // Short-circuit for logical ops
   if (tree.op === '&&') {
     const left = tree.left
@@ -359,7 +351,6 @@ export function evalExpr(
       : undefined;
     return right;
   }
-
   if (tree.op === '||') {
     const left = tree.left
       ? evalExpr(tree.left, context, errors, line)
@@ -370,7 +361,6 @@ export function evalExpr(
       : undefined;
     return right;
   }
-
   if (tree.op === '=>') {
     const left = tree.left
       ? evalExpr(tree.left, context, errors, line)
@@ -381,7 +371,6 @@ export function evalExpr(
       : undefined;
     return right;
   }
-
   if (tree.op === '<=>') {
     const left = tree.left
       ? evalExpr(tree.left, context, errors, line)
@@ -391,14 +380,12 @@ export function evalExpr(
       : undefined;
     return !!left === !!right;
   }
-
   const leftVal = tree.left
     ? evalExpr(tree.left, context, errors, line)
     : undefined;
   const rightVal = tree.right
     ? evalExpr(tree.right, context, errors, line)
     : undefined;
-
   switch (tree.op) {
     case '+':
       if (leftVal === undefined) return -Number(rightVal); // Unary
