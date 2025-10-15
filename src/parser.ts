@@ -6,12 +6,14 @@ interface ParseResult {
   errors: EvalError[];
 }
 function unescape(str: string): string {
-  return str
+  const result = str
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'");
+  console.log(`Unescaping: "${str}" to "${result}"`); // Added logging
+  return result;
 }
 class Parser {
   private tokens: Token[];
@@ -98,7 +100,8 @@ class Parser {
           message: 'Unexpected token',
           line: this.peek()?.line,
         });
-        this.pos++; // Skip invalid
+        // Recovery: Skip invalid token
+        this.pos++;
       }
     }
     // Closing tag
@@ -111,6 +114,11 @@ class Parser {
         message: `Expected closing tag for ${node.type}`,
         line: close?.line || node.line,
       });
+      // Recovery: Skip to next potential closing or end to avoid propagating errors
+      while (this.peek() && !(this.peek()?.type === 'closeTag' && this.peek()?.value === node.type)) {
+        this.pos++;
+      }
+      if (this.peek()?.type === 'closeTag') this.consume('closeTag');
     }
     return node;
   }
