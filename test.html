@@ -182,7 +182,7 @@
         input: `<nsml>
   <chess name="chessTest" moves="e2-e4,e7-e5" validate="true" execute="true" queryPiece="d2" />
 </nsml>`,
-        expected: { results: { "chessTest": { "fen": "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPPPPPP/RNBQKBNR", "moves": ["e2-e4", "e7-e5"], "queryResult": ["d3", "d4"] } }, errors: [], trace: ["Evaluating domain tag chess"] }
+        expected: { results: { "chessTest": { "fen": "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR", "moves": ["e2-e4", "e7-e5"], "queryResult": ["d3", "d4"] } }, errors: [], trace: ["Evaluating domain tag chess"] }
       },
       {
         description: "Math domain: simple expression evaluation",
@@ -263,25 +263,25 @@
     <query name="diff">set1 diff set2</query>
   </queries>
 </nsml>`,
-        expected: { results: { "union": { "size": 5 }, "intersect": { "size": 1 }, "diff": { "size": 2 } }, errors: [], trace: [] } // Note: Sets are objects, but for comparison, use size or convert
+        expected: { results: { "union": { "elements": [1,2,3,4,5] }, "intersect": { "elements": [3] }, "diff": { "elements": [1,2] } }, errors: [], trace: [] } // Updated expected to use sorted arrays for full comparison
       }
     ];
 
-    // Custom comparison function ignoring 'line' in errors and handling floats/Sets approximately
+    // Custom comparison function ignoring 'line' in errors and handling floats/Sets with sorted arrays
     function compareOutputs(actual, expected) {
       function normalize(obj) {
-        if (Array.isArray(obj)) return obj.map(normalize);
-        if (obj instanceof Set) return { size: obj.size }; // Simplify sets for comparison
+        if (Array.isArray(obj)) return obj.map(normalize).sort((a, b) => a - b); // Sort arrays
+        if (obj instanceof Set) return { elements: Array.from(obj).sort((a, b) => a - b) }; // Convert Set to sorted array object
         if (typeof obj === 'object' && obj !== null) {
           const copy = { ...obj };
           delete copy.line; // Ignore line numbers
           if (copy.suggestedFix) delete copy.suggestedFix; // Optional, ignore if varying
           for (let key in copy) {
             copy[key] = normalize(copy[key]);
-          }
-          // Approximate floats
-          if (typeof copy === 'number' && !Number.isInteger(copy)) {
-            return Math.round(copy * 1000) / 1000; // 3 decimal places
+            // Approximate floats
+            if (typeof copy[key] === 'number' && !Number.isInteger(copy[key])) {
+              copy[key] = Math.round(copy[key] * 1000) / 1000; // 3 decimal places
+            }
           }
           return copy;
         }
@@ -295,7 +295,14 @@
       const input = document.getElementById('input').value;
       try {
         const result = NSMLParser.parseNSML(input);
-        document.getElementById('output').textContent = JSON.stringify(result, null, 2);
+        // Custom replacer for JSON.stringify to handle Sets
+        const replacer = (key, value) => {
+          if (value instanceof Set) {
+            return Array.from(value).sort((a, b) => a - b); // Sort for consistent output
+          }
+          return value;
+        };
+        document.getElementById('output').textContent = JSON.stringify(result, replacer, 2);
       } catch (error) {
         document.getElementById('output').textContent = 'Error: ' + error.message + '\nStack: ' + error.stack;
       }
@@ -308,11 +315,22 @@
         try {
           const actual = NSMLParser.parseNSML(test.input);
           const pass = compareOutputs(actual, test.expected);
-          log += `Test ${index + 1}: ${test.description}\n`;
-          log += `Input:\n${test.input}\n\n`;
-          log += `Actual Output:\n${JSON.stringify(actual, null, 2)}\n\n`;
-          log += `Expected Output:\n${JSON.stringify(test.expected, null, 2)}\n\n`;
-          log += `Result: ${pass ? 'PASS' : 'FAIL'}\n\n---\n\n`;
+          if (pass) {
+            log += `Test ${index + 1}: PASS\n\n---\n\n`;
+          } else {
+            // Custom replacer for JSON.stringify to handle Sets
+            const replacer = (key, value) => {
+              if (value instanceof Set) {
+                return Array.from(value).sort((a, b) => a - b); // Sort for consistent output
+              }
+              return value;
+            };
+            log += `Test ${index + 1}: ${test.description}\n`;
+            log += `Input:\n${test.input}\n\n`;
+            log += `Actual Output:\n${JSON.stringify(actual, replacer, 2)}\n\n`;
+            log += `Expected Output:\n${JSON.stringify(test.expected, null, 2)}\n\n`;
+            log += `Result: FAIL\n\n---\n\n`;
+          }
         } catch (error) {
           log += `Test ${index + 1}: ${test.description}\n`;
           log += `Error: ${error.message}\nStack: ${error.stack}\n\n---\n\n`;

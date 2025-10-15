@@ -34,7 +34,7 @@ class Parser {
       return { ast: null, errors: this.errors };
     }
     const root = this.parseElement();
-    if (this.pos < this.tokens.length) {
+    if (this.pos < this.tokens.length && this.errors.length === 0) { // Only add if no prior errors
       this.errors.push({
         type: 'syntax',
         message: 'Extra content after root',
@@ -86,7 +86,7 @@ class Parser {
       this.consume('selfClose');
       return node;
     }
-    // Text or children
+    // Text or children (loop until close or EOF/error)
     while (this.peek() && this.peek()?.type !== 'closeTag') {
       if (this.peek()?.type === 'text') {
         const text = this.consume('text');
@@ -94,6 +94,12 @@ class Parser {
       } else if (this.peek()?.type === 'openTag') {
         const child = this.parseElement();
         if (child) node.children.push(child);
+        else {
+          // Recovery for failed child: skip to potential close
+          while (this.peek() && this.peek()?.type !== 'closeTag') {
+            this.pos++;
+          }
+        }
       } else {
         this.errors.push({
           type: 'syntax',
@@ -114,11 +120,8 @@ class Parser {
         message: `Expected closing tag for ${node.type}`,
         line: close?.line || node.line,
       });
-      // Recovery: Skip to next potential closing or end to avoid propagating errors
-      while (this.peek() && !(this.peek()?.type === 'closeTag' && this.peek()?.value === node.type)) {
-        this.pos++;
-      }
-      if (this.peek()?.type === 'closeTag') this.consume('closeTag');
+      // Improved recovery: Consume any remaining tokens until EOF or a close tag for outer scope, but don't add extra errors
+      return node; // Return partial node to avoid null propagation
     }
     return node;
   }

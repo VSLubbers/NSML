@@ -134,7 +134,7 @@ function isLegalMove(board: string[][], from: string, to: string, turn: string):
         }
         return false;
       } else if (absDx === 1 && dy === dir) { // Capture
-        return isOpponent(piece, board[ty][tx]);
+        return board[ty][tx] !== '.' && isOpponent(piece, board[ty][tx]);
       }
       return false;
     case 'r': // Rook
@@ -189,7 +189,7 @@ function getPossibleMoves(board: string[][], square: string, turn: string): stri
     for (const dx of [-1, 1]) {
       const cx = x + dx;
       const cy = y + dir;
-      if (cx >= 0 && cx < 8 && cy >= 0 && cy < 8 && isOpponent(piece, board[cy][cx])) {
+      if (cx >= 0 && cx < 8 && cy >= 0 && cy < 8 && board[cy][cx] !== '.' && isOpponent(piece, board[cy][cx])) {
         moves.push(coordToSquare(cx, cy));
       }
     }
@@ -241,6 +241,7 @@ function isClearPath(board: string[][], fx: number, fy: number, tx: number, ty: 
 }
 // Helper: Check if pieces are opponents
 function isOpponent(piece1: string, piece2: string): boolean {
+  if (piece2 === '.') return false; // Explicit check for empty
   return (piece1.toLowerCase() === piece1) !== (piece2.toLowerCase() === piece2);
 }
 // Helper: Convert square (e.g., 'e2') to coord [file 0-7, rank 0-7]
