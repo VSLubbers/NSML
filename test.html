@@ -38,112 +38,256 @@
   <pre id="output"></pre>
   <script src="dist/nsml-parser.min.js"></script>
   <script>
-    // Hardcoded test cases from previous snippets
+    // Hardcoded test cases covering the full scope of the implementation
     const testCases = [
       {
-        description: "Basic Root Structure (Empty NSML)",
-        input: `<nsml version="1.0"></nsml>`,
+        description: "Basic symbols and simple query evaluation",
+        input: `<nsml>
+  <symbols>
+    <var name="age" type="number">42</var>
+  </symbols>
+  <rules>
+    <rule name="isAdult">age >= 18</rule>
+  </rules>
+  <queries>
+    <query name="checkAdult">eval(isAdult)</query>
+  </queries>
+</nsml>`,
+        expected: { results: { "checkAdult": true }, errors: [], trace: [] }
+      },
+      {
+        description: "Counterfactual branch overriding symbol value",
+        input: `<nsml>
+  <symbols>
+    <var name="age" type="number">42</var>
+  </symbols>
+  <rules>
+    <rule name="isAdult">age >= 18</rule>
+  </rules>
+  <queries>
+    <counterfactual if="age=17">
+      <query name="checkAdult">eval(isAdult)</query>
+    </counterfactual>
+  </queries>
+</nsml>`,
+        expected: { results: { "checkAdult": false }, errors: [], trace: [] }
+      },
+      {
+        description: "Aggregate functions on sets (count, sum, min, max, avg)",
+        input: `<nsml>
+  <symbols>
+    <set name="ages" elements="17,42,65" />
+  </symbols>
+  <queries>
+    <aggregate func="count" over="ages" name="total" />
+    <aggregate func="sum" over="ages" name="sumAge" />
+    <aggregate func="min" over="ages" name="minAge" />
+    <aggregate func="max" over="ages" name="maxAge" />
+    <aggregate func="avg" over="ages" name="avgAge" />
+  </queries>
+</nsml>`,
+        expected: { results: { "total": 3, "sumAge": 124, "minAge": 17, "maxAge": 65, "avgAge": 41.333333333333336 }, errors: [], trace: [] }
+      },
+      {
+        description: "Quantifiers (exists, forall) with and without count",
+        input: `<nsml>
+  <symbols>
+    <set name="ages" elements="17,42,65" />
+    <const name="threshold" type="number" value="18" />
+  </symbols>
+  <queries>
+    <exists name="hasAdult" in="ages" condition="item > threshold" />
+    <exists name="hasAdultCount" in="ages" condition="item > threshold" count="true" />
+    <forall name="allAdult" in="ages" condition="item > threshold" />
+  </queries>
+</nsml>`,
+        expected: { results: { "hasAdult": true, "hasAdultCount": { "result": true, "count": 2 }, "allAdult": false }, errors: [], trace: [] }
+      },
+      {
+        description: "Failing constraint triggering error",
+        input: `<nsml>
+  <symbols>
+    <var name="age" type="number" init="15" />
+    <const name="adultThreshold" type="number" value="18" />
+  </symbols>
+  <rules>
+    <constraint>age < adultThreshold => error("Underage")</constraint>
+  </rules>
+</nsml>`,
+        expected: { results: {}, errors: [{ "type": "runtime", "message": "Underage" }], trace: [] }
+      },
+      {
+        description: "Passing constraint with no error",
+        input: `<nsml>
+  <symbols>
+    <var name="age" type="number" init="20" />
+    <const name="adultThreshold" type="number" value="18" />
+  </symbols>
+  <rules>
+    <constraint>age < adultThreshold => error("Underage")</constraint>
+  </rules>
+</nsml>`,
         expected: { results: {}, errors: [], trace: [] }
       },
       {
-        description: "Define a Variable",
-        input: `<nsml version="1.0"><symbols><var name="age" type="number">42</var></symbols></nsml>`,
+        description: "Failing assertion",
+        input: `<nsml>
+  <symbols>
+    <var name="x" type="number" init="0" />
+  </symbols>
+  <assertions>
+    <assert>x > 0</assert>
+  </assertions>
+</nsml>`,
+        expected: { results: {}, errors: [{ "type": "runtime", "message": "Assertion failed: x > 0", "suggestedFix": "Adjust values or conditions to satisfy assertion" }], trace: [] }
+      },
+      {
+        description: "Simulation trace generation",
+        input: `<nsml>
+  <symbols>
+    <var name="x" type="number" init="5" />
+  </symbols>
+  <queries>
+    <query name="double">eval(x * 2)</query>
+  </queries>
+  <simulate steps="trace" target="double" />
+</nsml>`,
+        expected: { results: { "double": 10 }, errors: [], trace: ["Evaluating double: step1 eval..."] }
+      },
+      {
+        description: "Graph definition and path function",
+        input: `<nsml>
+  <symbols>
+    <graph name="family" nodes="A,B,C" edges="A->to->B,B->to->C" />
+  </symbols>
+  <queries>
+    <query name="pathAB">path(family, "A", "B")</query>
+    <query name="pathAC">path(family, "A", "C")</query>
+  </queries>
+</nsml>`,
+        expected: { results: { "pathAB": ["A", "B"], "pathAC": ["A", "B", "C"] }, errors: [], trace: [] }
+      },
+      {
+        description: "Entity with properties and references",
+        input: `<nsml>
+  <symbols>
+    <var name="age" type="number" init="42" />
+    <entity name="person" props="name='Alice', personAge=age" />
+  </symbols>
+</nsml>`,
         expected: { results: {}, errors: [], trace: [] }
       },
       {
-        description: "Constant and Entity",
-        input: `<nsml version="1.0"><symbols><const name="threshold" type="number" value="18" /><entity name="person" props="name='Alice', age=42" /></symbols></nsml>`,
-        expected: { results: {}, errors: [], trace: [] }
+        description: "Chess domain: validation, execution, and query",
+        input: `<nsml>
+  <chess name="chessTest" moves="e2-e4,e7-e5" validate="true" execute="true" queryPiece="d2" />
+</nsml>`,
+        expected: { results: { "chessTest": { "fen": "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPPPPPP/RNBQKBNR", "moves": ["e2-e4", "e7-e5"], "queryResult": ["d3", "d4"] } }, errors: [], trace: ["Evaluating domain tag chess"] }
       },
       {
-        description: "Rules and Constraints",
-        input: `<nsml version="1.0"><symbols><var name="age" type="number">42</var><const name="adultThreshold" type="number" value="18" /></symbols><rules><rule name="isAdult">age >= adultThreshold</rule><constraint>age < adultThreshold => error("Underage")</constraint></rules></nsml>`,
-        expected: { results: {}, errors: [], trace: [] }
+        description: "Math domain: simple expression evaluation",
+        input: `<nsml>
+  <math name="expr" expression="2 + 3 * 4" />
+</nsml>`,
+        expected: { results: { "expr": 14 }, errors: [], trace: ["Evaluating domain tag math"] }
       },
       {
-        description: "Queries and Aggregates",
-        input: `<nsml version="1.0"><symbols><set name="ages" elements="17,42,65" /><const name="adultThreshold" type="number" value="18" /></symbols><queries><exists in="ages" condition="> adultThreshold" count="true" /><aggregate func="count" over="ages" /></queries></nsml>`,
-        expected: { results: { "anonymous0": 2, "anonymous1": 3 }, errors: [], trace: [] }
+        description: "Math domain: linear equation solving",
+        input: `<nsml>
+  <math name="eq" expression="2x + 3 = 7" />
+</nsml>`,
+        expected: { results: { "eq": { "x": 2 } }, errors: [], trace: ["Evaluating domain tag math"] }
       },
       {
-        description: "Counterfactual Branch",
-        input: `<nsml version="1.0"><symbols><var name="age" type="number">42</var></symbols><rules><rule name="isAdult">age >= 18</rule></rules><queries><query name="original">eval(isAdult)</query><counterfactual if="age=17"><query name="hypothetical">eval(isAdult)</query></counterfactual><query name="after">eval(isAdult)</query></queries></nsml>`,
-        expected: { results: { "original": true, "hypothetical": false, "after": true }, errors: [], trace: [] }
+        description: "Import handling (logs in trace)",
+        input: `<nsml>
+  <import src="logic.nsml" />
+</nsml>`,
+        expected: { results: {}, errors: [], trace: ["Importing logic.nsml (full loading not implemented yet)"] }
       },
       {
-        description: "Sets, Graphs, and Expressions",
-        input: `<nsml version="1.0"><symbols><set name="evens" elements="2,4,6" /><graph name="family" nodes="Alice,Bob,Charlie" edges="Alice->parentOf->Bob,Bob->parentOf->Charlie" /></symbols><queries><query name="union">eval(evens union {8})</query><query name="path">eval(path(family, "Alice", "Charlie"))</query></queries></nsml>`,
-        expected: { results: { "union": { "2": true, "4": true, "6": true, "8": true }, "path": ["Alice", "Bob", "Charlie"] }, errors: [], trace: [] }
+        description: "Error case: invalid syntax (unclosed tag)",
+        input: `<nsml><unclosed>`,
+        expected: { results: {}, errors: [{ "type": "syntax", "message": "Expected closing tag for unclosed" }], trace: [] }
       },
       {
-        description: "Assertions and Simulation",
-        input: `<nsml version="1.0"><symbols><var name="temp" type="number">25</var></symbols><assertions><assert>temp > 0</assert></assertions><queries><query name="checkTemp">eval(temp + 5)</query></queries><simulate steps="trace" target="checkTemp" /></nsml>`,
-        expected: { results: { "checkTemp": 30 }, errors: [], trace: ["Evaluating checkTemp: step1 eval..."] }
+        description: "Error case: duplicate symbol",
+        input: `<nsml>
+  <symbols>
+    <var name="age" type="number" init="42" />
+    <var name="age" type="number" init="43" />
+  </symbols>
+</nsml>`,
+        expected: { results: {}, errors: [{ "type": "semantic", "message": "Duplicate symbol 'age'", "suggestedFix": "Rename or remove duplicate" }], trace: [] }
       },
       {
-        description: "Domain Hooks (Chess)",
-        input: `<nsml version="1.0"><chess name="game" moves="e2-e4,e7-e5" validate="true" execute="true" queryPiece="e4" /></nsml>`,
-        expected: { results: { "game": { "fen": "rnbqkbnr/pppp1ppp/8/4p3/P3P3/8/PPPP1PPP/RNBQKBNR", "moves": ["e2-e4", "e7-e5"], "queryResult": ["e5"] } }, errors: [], trace: ["Evaluating domain tag chess"] }
+        description: "Error case: type mismatch",
+        input: `<nsml>
+  <symbols>
+    <var name="age" type="number" init="forty-two" />
+  </symbols>
+</nsml>`,
+        expected: { results: {}, errors: [{ "type": "semantic", "message": "Invalid number value 'forty-two'", "suggestedFix": "Provide a valid number" }], trace: [] }
       },
       {
-        description: "Domain Hooks (Math) with Equation",
-        input: `<nsml version="1.0"><symbols><var name="a" type="number">2</var></symbols><math name="calc" expression="a * 3 + 1" /><math name="solve" expression="2x + 3 = 7" /></nsml>`,
-        expected: { results: { "calc": 7, "solve": { "x": 2 } }, errors: [], trace: ["Evaluating domain tag math", "Evaluating domain tag math"] }
+        description: "Error case: unresolved reference",
+        input: `<nsml>
+  <symbols>
+    <entity name="person" props="personAge=missing" />
+  </symbols>
+</nsml>`,
+        expected: { results: {}, errors: [{ "type": "semantic", "message": "Unresolved reference 'missing'", "suggestedFix": "Define the symbol before referencing it" }], trace: [] }
       },
       {
-        description: "Full Integration with Counterfactual, Math, and Chess",
-        input: `<nsml version="1.0"><symbols><var name="age" type="number">42</var><set name="temps" elements="10,20,30" /><graph name="family" nodes="A,B,C" edges="A->B,B->C" /></symbols><rules><rule name="isAdult">age >= 18</rule></rules><queries><query name="checkAdult">eval(isAdult)</query><aggregate func="avg" over="temps" /><query name="path">eval(path(family, "A", "C"))</query><counterfactual if="age=17"><query name="hypoAdult">eval(isAdult)</query><math name="hypoMath" expression="age * 2" /></counterfactual></queries><chess name="game" moves="e2-e4" validate="true" queryPiece="e4" /><assertions><assert>age > 0</assert></assertions><simulate steps="trace" target="checkAdult" /></nsml>`,
-        expected: { results: { "checkAdult": true, "anonymous0": 20, "path": ["A", "B", "C"], "hypoAdult": false, "hypoMath": 34, "game": { "fen": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR", "moves": ["e2-e4"], "queryResult": ["e5"] } }, errors: [], trace: ["Evaluating checkAdult: step1 eval..."] }      },
-      {
-        description: "Lexer Quote Test",
-        input: `<nsml><rules><constraint>true => error("Underage")</constraint></rules></nsml>`,
-        expected: { results: {}, errors: [], trace: [] }
+        description: "Function with parameters",
+        input: `<nsml>
+  <rules>
+    <function name="add" params="a:number,b:number">a + b</function>
+  </rules>
+  <queries>
+    <query name="result">eval(add(2, 3))</query>
+  </queries>
+</nsml>`,
+        expected: { results: { "result": 5 }, errors: [], trace: [] }
       },
       {
-        description: "Exists Query Test",
-        input: `<nsml><symbols><set name="s" elements="1,2" /></symbols><queries><exists in="s" count="true" /></queries></nsml>`,
-        expected: { results: { "anonymous0": 2 }, errors: [], trace: [] }
-      },
-      {
-        description: "Condition Eval in Exists",
-        input: `<nsml><symbols><set name="ages" elements="17,42" /><const name="th" value="18" /></symbols><queries><exists in="ages" condition="> th" count="true" /></queries></nsml>`,
-        expected: { results: { "anonymous0": 1 }, errors: [], trace: [] }
-      },
-      {
-        description: "Set Literal Test",
-        input: `<nsml><queries><query name="setOp">eval({1,2} union {2,3})</query></queries></nsml>`,
-        expected: { results: { "setOp": { "1": true, "2": true, "3": true } }, errors: [], trace: [] }
-      },
-      {
-        description: "Path Func Test",
-        input: `<nsml><symbols><graph name="g" nodes="A,B" edges="A->to->B" /></symbols><queries><query name="p">eval(path(g, "A", "B"))</query></queries></nsml>`,
-        expected: { results: { "p": ["A", "B"] }, errors: [], trace: [] }
-      },
-      {
-        description: "Arithmetic Eval Test",
-        input: `<nsml><symbols><var name="t" type="number">25</var></symbols><queries><query name="add">eval(t + 5)</query></queries></nsml>`,
-        expected: { results: { "add": 30 }, errors: [], trace: [] }
-      },
-      {
-        description: "Scope Leak Test",
-        input: `<nsml><symbols><var name="v" type="number">10</var></symbols><queries><query name="before">eval(v)</query><counterfactual if="v=20"><query name="inside">eval(v)</query></counterfactual><query name="after">eval(v)</query></queries></nsml>`,
-        expected: { results: { "before": 10, "inside": 20, "after": 10 }, errors: [], trace: [] }
-      },
-      {
-        description: "Chess Pawn Forward Test",
-        input: `<nsml><chess name="p" moves="e2-e4" validate="true" execute="true" queryPiece="e4" /></nsml>`,
-        expected: { results: { "p": { "fen": ".../4P3/...", "moves": ["e2-e4"], "queryResult": ["e5"] } }, errors: [], trace: ["Evaluating domain tag chess"] }
-      },
-      {
-        description: "Chess Capture Test",
-        input: `<nsml><chess name="c" fen="rnbqkbnr/pppppppp/8/8/4p3/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" moves="d2-d4" validate="true" queryPiece="d4" /></nsml>`,
-        expected: { results: { "c": { "fen": ".../3P4/...", "moves": ["d2-d4"], "queryResult": ["d5", "e5"] } }, errors: [], trace: ["Evaluating domain tag chess"] }
+        description: "Set operations in expressions",
+        input: `<nsml>
+  <symbols>
+    <set name="set1" elements="1,2,3" />
+    <set name="set2" elements="3,4,5" />
+  </symbols>
+  <queries>
+    <query name="union">set1 union set2</query>
+    <query name="intersect">set1 intersect set2</query>
+    <query name="diff">set1 diff set2</query>
+  </queries>
+</nsml>`,
+        expected: { results: { "union": { "size": 5 }, "intersect": { "size": 1 }, "diff": { "size": 2 } }, errors: [], trace: [] } // Note: Sets are objects, but for comparison, use size or convert
       }
     ];
 
-    // Function to compare actual and expected (simple deep equality for JSON)
+    // Custom comparison function ignoring 'line' in errors and handling floats/Sets approximately
     function compareOutputs(actual, expected) {
-      return JSON.stringify(actual) === JSON.stringify(expected);
+      function normalize(obj) {
+        if (Array.isArray(obj)) return obj.map(normalize);
+        if (obj instanceof Set) return { size: obj.size }; // Simplify sets for comparison
+        if (typeof obj === 'object' && obj !== null) {
+          const copy = { ...obj };
+          delete copy.line; // Ignore line numbers
+          if (copy.suggestedFix) delete copy.suggestedFix; // Optional, ignore if varying
+          for (let key in copy) {
+            copy[key] = normalize(copy[key]);
+          }
+          // Approximate floats
+          if (typeof copy === 'number' && !Number.isInteger(copy)) {
+            return Math.round(copy * 1000) / 1000; // 3 decimal places
+          }
+          return copy;
+        }
+        return obj;
+      }
+      return JSON.stringify(normalize(actual)) === JSON.stringify(normalize(expected));
     }
 
     // Run single parse

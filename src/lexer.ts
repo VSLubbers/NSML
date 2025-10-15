@@ -148,13 +148,28 @@ export function lex(input: string): Token[] {
       });
       continue;
     }
-    // Text
-    const textMatch = input.slice(pos).match(/^[^<]+/);
-    if (textMatch) {
-      const value = textMatch[0];
-      tokens.push({ type: 'text', value, line: line, column: column });
-      pos += value.length;
-      column += value.length;
+    // Text (updated to handle literal < if not a valid tag start)
+    let value = '';
+    while (pos < input.length) {
+      if (input[pos] === '<') {
+        // Check if it's a valid tag start (opening or closing)
+        if (pos + 1 < input.length && ( /[\w:]/.test(input[pos + 1]) || input[pos + 1] === '/' )) {
+          // Valid tag, break for text
+          break;
+        } else {
+          // Literal <, append to text
+          value += input[pos];
+          pos++;
+          column++;
+          continue;
+        }
+      }
+      value += input[pos];
+      pos++;
+      column++;
+    }
+    if (value) {
+      tokens.push({ type: 'text', value, line: line, column: column - value.length });
       continue;
     }
     throw new Error(
