@@ -4,29 +4,183 @@
   <meta charset="UTF-8">
   <title>NSML Parser Interactive Tester</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    #input { width: 100%; height: 300px; font-family: monospace; }
-    #output { margin-top: 20px; padding: 10px; border: 1px solid #ccc; background: #f8f8f8; white-space: pre-wrap; }
-    button { margin-top: 10px; padding: 8px 16px; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    #input {
+      width: 100%;
+      height: 300px;
+      font-family: monospace;
+    }
+    #output {
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      background: #f8f8f8;
+      white-space: pre-wrap;
+      font-family: monospace;
+    }
+    button {
+      margin-top: 10px;
+      padding: 8px 16px;
+      margin-right: 10px;
+    }
   </style>
 </head>
 <body>
   <h1>NSML Parser Interactive Tester</h1>
-  <p>Enter your NSML snippet below and click "Parse" to see the output.</p>
+  <p>Enter your NSML snippet below and click "Parse" to see the output. Example: <code>&lt;nsml&gt;&lt;symbols&gt;&lt;var name="age" type="number"&gt;42&lt;/var&gt;&lt;/symbols&gt;&lt;/nsml&gt;</code></p>
   <textarea id="input" placeholder="Paste NSML code here..."></textarea>
   <button id="parseBtn">Parse</button>
-  <div id="output"></div>
-
+  <button id="runAllTestsBtn">Run All Tests</button>
+  <button id="clearBtn">Clear</button>
+  <pre id="output"></pre>
   <script src="dist/nsml-parser.min.js"></script>
   <script>
+    // Hardcoded test cases from previous snippets
+    const testCases = [
+      {
+        description: "Basic Root Structure (Empty NSML)",
+        input: `<nsml version="1.0"></nsml>`,
+        expected: { results: {}, errors: [], trace: [] }
+      },
+      {
+        description: "Define a Variable",
+        input: `<nsml version="1.0"><symbols><var name="age" type="number">42</var></symbols></nsml>`,
+        expected: { results: {}, errors: [], trace: [] }
+      },
+      {
+        description: "Constant and Entity",
+        input: `<nsml version="1.0"><symbols><const name="threshold" type="number" value="18" /><entity name="person" props="name='Alice', age=42" /></symbols></nsml>`,
+        expected: { results: {}, errors: [], trace: [] }
+      },
+      {
+        description: "Rules and Constraints",
+        input: `<nsml version="1.0"><symbols><var name="age" type="number">42</var><const name="adultThreshold" type="number" value="18" /></symbols><rules><rule name="isAdult">age >= adultThreshold</rule><constraint>age < adultThreshold => error("Underage")</constraint></rules></nsml>`,
+        expected: { results: {}, errors: [], trace: [] }
+      },
+      {
+        description: "Queries and Aggregates",
+        input: `<nsml version="1.0"><symbols><set name="ages" elements="17,42,65" /><const name="adultThreshold" type="number" value="18" /></symbols><queries><exists in="ages" condition="> adultThreshold" count="true" /><aggregate func="count" over="ages" /></queries></nsml>`,
+        expected: { results: { "anonymous0": 2, "anonymous1": 3 }, errors: [], trace: [] }
+      },
+      {
+        description: "Counterfactual Branch",
+        input: `<nsml version="1.0"><symbols><var name="age" type="number">42</var></symbols><rules><rule name="isAdult">age >= 18</rule></rules><queries><query name="original">eval(isAdult)</query><counterfactual if="age=17"><query name="hypothetical">eval(isAdult)</query></counterfactual><query name="after">eval(isAdult)</query></queries></nsml>`,
+        expected: { results: { "original": true, "hypothetical": false, "after": true }, errors: [], trace: [] }
+      },
+      {
+        description: "Sets, Graphs, and Expressions",
+        input: `<nsml version="1.0"><symbols><set name="evens" elements="2,4,6" /><graph name="family" nodes="Alice,Bob,Charlie" edges="Alice->parentOf->Bob,Bob->parentOf->Charlie" /></symbols><queries><query name="union">eval(evens union {8})</query><query name="path">eval(path(family, "Alice", "Charlie"))</query></queries></nsml>`,
+        expected: { results: { "union": { "2": true, "4": true, "6": true, "8": true }, "path": ["Alice", "Bob", "Charlie"] }, errors: [], trace: [] }
+      },
+      {
+        description: "Assertions and Simulation",
+        input: `<nsml version="1.0"><symbols><var name="temp" type="number">25</var></symbols><assertions><assert>temp > 0</assert></assertions><queries><query name="checkTemp">eval(temp + 5)</query></queries><simulate steps="trace" target="checkTemp" /></nsml>`,
+        expected: { results: { "checkTemp": 30 }, errors: [], trace: ["Evaluating checkTemp: step1 eval..."] }
+      },
+      {
+        description: "Domain Hooks (Chess)",
+        input: `<nsml version="1.0"><chess name="game" moves="e2-e4,e7-e5" validate="true" execute="true" queryPiece="e4" /></nsml>`,
+        expected: { results: { "game": { "fen": "rnbqkbnr/pppp1ppp/8/4p3/P3P3/8/PPPP1PPP/RNBQKBNR", "moves": ["e2-e4", "e7-e5"], "queryResult": ["e5"] } }, errors: [], trace: ["Evaluating domain tag chess"] }
+      },
+      {
+        description: "Domain Hooks (Math) with Equation",
+        input: `<nsml version="1.0"><symbols><var name="a" type="number">2</var></symbols><math name="calc" expression="a * 3 + 1" /><math name="solve" expression="2x + 3 = 7" /></nsml>`,
+        expected: { results: { "calc": 7, "solve": { "x": 2 } }, errors: [], trace: ["Evaluating domain tag math", "Evaluating domain tag math"] }
+      },
+      {
+        description: "Full Integration with Counterfactual, Math, and Chess",
+        input: `<nsml version="1.0"><symbols><var name="age" type="number">42</var><set name="temps" elements="10,20,30" /><graph name="family" nodes="A,B,C" edges="A->B,B->C" /></symbols><rules><rule name="isAdult">age >= 18</rule></rules><queries><query name="checkAdult">eval(isAdult)</query><aggregate func="avg" over="temps" /><query name="path">eval(path(family, "A", "C"))</query><counterfactual if="age=17"><query name="hypoAdult">eval(isAdult)</query><math name="hypoMath" expression="age * 2" /></counterfactual></queries><chess name="game" moves="e2-e4" validate="true" queryPiece="e4" /><assertions><assert>age > 0</assert></assertions><simulate steps="trace" target="checkAdult" /></nsml>`,
+        expected: { results: { "checkAdult": true, "anonymous0": 20, "path": ["A", "B", "C"], "hypoAdult": false, "hypoMath": 34, "game": { "fen": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR", "moves": ["e2-e4"], "queryResult": ["e5"] } }, errors: [], trace: ["Evaluating checkAdult: step1 eval..."] }      },
+      {
+        description: "Lexer Quote Test",
+        input: `<nsml><rules><constraint>true => error("Underage")</constraint></rules></nsml>`,
+        expected: { results: {}, errors: [], trace: [] }
+      },
+      {
+        description: "Exists Query Test",
+        input: `<nsml><symbols><set name="s" elements="1,2" /></symbols><queries><exists in="s" count="true" /></queries></nsml>`,
+        expected: { results: { "anonymous0": 2 }, errors: [], trace: [] }
+      },
+      {
+        description: "Condition Eval in Exists",
+        input: `<nsml><symbols><set name="ages" elements="17,42" /><const name="th" value="18" /></symbols><queries><exists in="ages" condition="> th" count="true" /></queries></nsml>`,
+        expected: { results: { "anonymous0": 1 }, errors: [], trace: [] }
+      },
+      {
+        description: "Set Literal Test",
+        input: `<nsml><queries><query name="setOp">eval({1,2} union {2,3})</query></queries></nsml>`,
+        expected: { results: { "setOp": { "1": true, "2": true, "3": true } }, errors: [], trace: [] }
+      },
+      {
+        description: "Path Func Test",
+        input: `<nsml><symbols><graph name="g" nodes="A,B" edges="A->to->B" /></symbols><queries><query name="p">eval(path(g, "A", "B"))</query></queries></nsml>`,
+        expected: { results: { "p": ["A", "B"] }, errors: [], trace: [] }
+      },
+      {
+        description: "Arithmetic Eval Test",
+        input: `<nsml><symbols><var name="t" type="number">25</var></symbols><queries><query name="add">eval(t + 5)</query></queries></nsml>`,
+        expected: { results: { "add": 30 }, errors: [], trace: [] }
+      },
+      {
+        description: "Scope Leak Test",
+        input: `<nsml><symbols><var name="v" type="number">10</var></symbols><queries><query name="before">eval(v)</query><counterfactual if="v=20"><query name="inside">eval(v)</query></counterfactual><query name="after">eval(v)</query></queries></nsml>`,
+        expected: { results: { "before": 10, "inside": 20, "after": 10 }, errors: [], trace: [] }
+      },
+      {
+        description: "Chess Pawn Forward Test",
+        input: `<nsml><chess name="p" moves="e2-e4" validate="true" execute="true" queryPiece="e4" /></nsml>`,
+        expected: { results: { "p": { "fen": ".../4P3/...", "moves": ["e2-e4"], "queryResult": ["e5"] } }, errors: [], trace: ["Evaluating domain tag chess"] }
+      },
+      {
+        description: "Chess Capture Test",
+        input: `<nsml><chess name="c" fen="rnbqkbnr/pppppppp/8/8/4p3/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" moves="d2-d4" validate="true" queryPiece="d4" /></nsml>`,
+        expected: { results: { "c": { "fen": ".../3P4/...", "moves": ["d2-d4"], "queryResult": ["d5", "e5"] } }, errors: [], trace: ["Evaluating domain tag chess"] }
+      }
+    ];
+
+    // Function to compare actual and expected (simple deep equality for JSON)
+    function compareOutputs(actual, expected) {
+      return JSON.stringify(actual) === JSON.stringify(expected);
+    }
+
+    // Run single parse
     document.getElementById('parseBtn').addEventListener('click', () => {
       const input = document.getElementById('input').value;
       try {
         const result = NSMLParser.parseNSML(input);
         document.getElementById('output').textContent = JSON.stringify(result, null, 2);
       } catch (error) {
-        document.getElementById('output').textContent = 'Error: ' + error.message;
+        document.getElementById('output').textContent = 'Error: ' + error.message + '\nStack: ' + error.stack;
       }
+    });
+
+    // Run all tests
+    document.getElementById('runAllTestsBtn').addEventListener('click', () => {
+      let log = '';
+      testCases.forEach((test, index) => {
+        try {
+          const actual = NSMLParser.parseNSML(test.input);
+          const pass = compareOutputs(actual, test.expected);
+          log += `Test ${index + 1}: ${test.description}\n`;
+          log += `Input:\n${test.input}\n\n`;
+          log += `Actual Output:\n${JSON.stringify(actual, null, 2)}\n\n`;
+          log += `Expected Output:\n${JSON.stringify(test.expected, null, 2)}\n\n`;
+          log += `Result: ${pass ? 'PASS' : 'FAIL'}\n\n---\n\n`;
+        } catch (error) {
+          log += `Test ${index + 1}: ${test.description}\n`;
+          log += `Error: ${error.message}\nStack: ${error.stack}\n\n---\n\n`;
+        }
+      });
+      document.getElementById('output').textContent = log;
+    });
+
+    // Clear output
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      document.getElementById('input').value = '';
+      document.getElementById('output').textContent = '';
     });
   </script>
 </body>
