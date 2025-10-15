@@ -86,6 +86,7 @@ export interface ExprNode {
   value?: any; // Literal or symbol reference
   func?: string; // For function calls like error(...)
   args?: ExprNode[]; // Arguments for functions
+  line?: number; // Added for error reporting in eval
 }
 
 /**

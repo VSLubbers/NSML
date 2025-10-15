@@ -1,3 +1,4 @@
+// src/evaluator.ts - Updated with fixes for core reasoning
 import {
   AstNode,
   SymbolTable,
@@ -5,7 +6,6 @@ import {
   EvalError,
   ExprNode,
   SymbolEntry,
-  DomainRegistry,
 } from './types';
 import { parseExpression, compileRules } from './compiler';
 import { parseValue } from './resolver';
@@ -87,7 +87,7 @@ export function evaluate(
     }
   }
 
-  // Evaluate expression tree
+  // Evaluate expression tree (updated for better func handling)
   function evalTree(tree: ExprNode, context: Record<string, any>): any {
     if (tree.value !== undefined) {
       const val =
@@ -99,12 +99,99 @@ export function evaluate(
     if (tree.func) {
       const args = tree.args?.map((a: ExprNode) => evalTree(a, context)) || [];
       if (tree.func === 'error') return { type: 'error', message: args[0] };
-      if (tree.func === 'eval') {
-        const ruleName = args[0] as string;
-        const ruleTree = exprTrees.get(ruleName);
-        if (ruleTree) return evalTree(ruleTree, context); // Evaluate rule's tree with context
-        return null;
+      if (tree.func === 'path') {
+        if (args.length !== 3) {
+          errors.push({
+            type: 'runtime',
+            message: 'path function requires 3 arguments (graph, start, end)',
+            line: tree.line || 0, // Assume line added to ExprNode if needed
+            suggestedFix: 'Provide graph, start node, and end node',
+          });
+          return null;
+        }
+        const [graph, from, to] = args;
+        if (typeof from !== 'string' || typeof to !== 'string') {
+          errors.push({
+            type: 'runtime',
+            message: 'Start and end must be strings for path',
+            line: tree.line || 0,
+          });
+          return null;
+        }
+        if (
+          !(
+            graph &&
+            graph.nodes instanceof Set &&
+            graph.edges instanceof Map
+          )
+        ) {
+          errors.push({
+            type: 'runtime',
+            message: 'Invalid graph argument for path',
+            line: tree.line || 0,
+            suggestedFix: 'Ensure first argument is a valid graph symbol',
+          });
+          return null;
+        }
+        // BFS for path (unchanged, but now with string checks)
+        const queue: string[] = [from];
+        const visited = new Set<string>([from]);
+        const parent = new Map<string, string | null>([[from, null]]);
+        let found = false;
+        while (queue.length > 0) {
+          const curr = queue.shift()!;
+          if (curr === to) {
+            found = true;
+            break;
+          }
+          const neighbors = Array.from(
+            graph.edges.get(curr)?.values() || []
+          ) as string[];
+          for (const neigh of neighbors) {
+            if (!visited.has(neigh)) {
+              visited.add(neigh);
+              queue.push(neigh);
+              parent.set(neigh, curr);
+            }
+          }
+        }
+        if (!found) {
+          return null;
+        }
+        // Reconstruct path
+        const path: string[] = [];
+        let curr: string | null = to;
+        while (curr !== null) {
+          path.unshift(curr);
+          curr = parent.get(curr)!;
+        }
+        return path;
       }
+      if (tree.func === 'eval') {
+        if (typeof args[0] === 'string') {
+          const ruleTree = exprTrees.get(args[0]);
+          if (ruleTree) return evalTree(ruleTree, context);
+          errors.push({
+            type: 'runtime',
+            message: `Unknown rule '${args[0]}'`,
+            line: tree.line || 0,
+          });
+          return null;
+        } else {
+          return args[0]; // Direct evaluated expression
+        }
+      }
+      // General user-defined function call
+      const func = rules.get(tree.func);
+      if (func) {
+        return func(...args);
+      }
+      errors.push({
+        type: 'runtime',
+        message: `Unknown function '${tree.func}'`,
+        line: tree.line || 0,
+        suggestedFix: 'Define the function in <rules>',
+      });
       return null;
     }
     const left = tree.left ? evalTree(tree.left, context) : undefined;
@@ -172,7 +259,7 @@ export function evaluate(
       return;
     }
     const name = node.attributes.name || 'anonymous';
-    const expr = node.attributes.eval || node.text;
+    const expr = node.text || ''; // Removed attributes.eval, assume text is expression
     if (expr) {
       const tree = parseExpression(expr);
       if (tree) {
@@ -343,18 +430,18 @@ export function evaluate(
   }
 
   // Process branches/counterfactuals
-function processBranch(node: AstNode, context: Record<string, any>) {
-  const ifStr = node.attributes.if;
-  if (ifStr) {
-    const newContext = deepClone(context);
-    ifStr.split(',').forEach(ass => {
-      const [key, val] = ass.split('=').map(s => s.trim());
-      const existingType = symbols.get(key)?.type || 'any';
-      newContext[key] = parseValue(val, existingType, symbols, errors, node.line);
-    });
-    node.children.forEach(child => processQuery(child, newContext));
+  function processBranch(node: AstNode, context: Record<string, any>) {
+    const ifStr = node.attributes.if;
+    if (ifStr) {
+      const newContext = deepClone(context);
+      ifStr.split(',').forEach(ass => {
+        const [key, val] = ass.split('=').map(s => s.trim());
+        const existingType = symbols.get(key)?.type || 'any';
+        newContext[key] = parseValue(val, existingType, symbols, errors, node.line);
+      });
+      node.children.forEach(child => processQuery(child, newContext));
+    }
   }
-}
 
   // Simulate trace
   function processSimulate(node: AstNode) {
