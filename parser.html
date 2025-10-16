@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NSML Parser</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto&family=Roboto+Mono&family=Roboto+Serif&display=swap" rel="stylesheet">
+</head>
+<body>
+  <h1>NSML Parser</h1>
+  <textarea id="nsmlInput" placeholder="&lt;nsml&gt;
+  &lt;symbols&gt;
+    &lt;var name=&quot;x&quot; type=&quot;number&quot; init=&quot;5&quot; /&gt;
+  &lt;/symbols&gt;
+  &lt;queries&gt;
+    &lt;query name=&quot;double&quot;&gt;x * 2&lt;/query&gt;
+  &lt;/queries&gt;
+&lt;/nsml&gt;"></textarea>
+  <br>
+  <button onclick="parseNSML()">Parse NSML</button>
+  <div class="grid-container">
+    <div id="outputs">
+      <div id="outputs-content">Outputs</div>
+    </div>
+    <div class="right-column">
+      <div id="errors">
+        <div id="errors-content">Errors</div>
+      </div>
+      <div id="traces">
+        <div id="traces-content">Traces</div>
+      </div>
+    </div>
+  </div>
+  <div class="license-box">
+    Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0. Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. This tool is provided for demonstration purposes only. Use at your own risk.
+  </div>
+
+  <script src="dist/nsml-parser.min.js"></script>
+  <script>
+    async function parseNSML() {
+      const input = document.getElementById('nsmlInput').value;
+      const outputsDiv = document.getElementById('outputs-content');
+      const errorsDiv = document.getElementById('errors-content');
+      const tracesDiv = document.getElementById('traces-content');
+      const outputsContainer = document.getElementById('outputs');
+      const rightColumn = document.querySelector('.right-column');
+      const gridContainer = document.querySelector('.grid-container');
+
+      // Reset heights and content classes
+      outputsContainer.style.height = 'auto';
+      rightColumn.style.height = 'auto';
+      gridContainer.classList.remove('has-output');
+
+      try {
+        const result = await NSMLParser.parseNSML(input);
+        
+        // Add has-output class to hide initial text when actual content is present
+        gridContainer.classList.add('has-output');
+
+        // Format results
+        const outputsText = Object.entries(result.results || {})
+          .map(([key, value]) => `${key}: ${JSON.stringify(value, null, 2).replace(/^{|}$/g, '').trim()}`)
+          .join('\n') || 'No results';
+        outputsDiv.textContent = outputsText;
+
+        // Format errors
+        const errorsText = (result.errors || [])
+          .map(err => `Line ${err.line || 'unknown'}: ${err.message}${err.suggestedFix ? ` (Suggested fix: ${err.suggestedFix})` : ''}`)
+          .join('\n') || 'No errors';
+        errorsDiv.textContent = errorsText;
+
+        // Format traces
+        const tracesText = (result.trace || []).join('\n') || 'No traces';
+        tracesDiv.textContent = tracesText;
+
+        // Dynamically set right column height to match the tallest
+        setTimeout(() => {
+          const outputsHeight = outputsContainer.offsetHeight;
+          const rightHeight = rightColumn.offsetHeight;
+          const maxHeight = Math.max(outputsHeight, rightHeight);
+          outputsContainer.style.height = `${maxHeight}px`;
+          rightColumn.style.height = `${maxHeight}px`;
+        }, 0); // Run after rendering
+      } catch (e) {
+        errorsDiv.textContent = `Error: ${e.message}`;
+        outputsDiv.textContent = 'No results';
+        tracesDiv.textContent = 'No traces';
+        // Reset heights on error
+        outputsContainer.style.height = 'auto';
+        rightColumn.style.height = 'auto';
+      }
+    }
+  </script>
+</body>
+</html>
