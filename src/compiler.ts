@@ -102,7 +102,8 @@ export function compileRules(
   return { rules, exprTrees, errors };
 }
 
-export function parseExpression(expr: string, line?: number): ExprNode | null { // Added line param
+export function parseExpression(expr: string, line?: number): ExprNode | null {
+  // Added line param
   expr = expr.replace(/(\d)([a-zA-Z_])/g, '$1*$2');
   const tokens = tokenizeExpr(expr);
   let pos = 0;
@@ -250,7 +251,10 @@ function tokenizeExpr(expr: string): string[] {
   let pos = 0;
   while (pos < expr.length) {
     const char = expr[pos];
-    if (/\s/.test(char)) { pos++; continue; } // Skip space
+    if (/\s/.test(char)) {
+      pos++;
+      continue;
+    } // Skip space
     if (char === '"' || char === "'") {
       const end = expr.indexOf(char, pos + 1);
       if (end === -1) throw new Error('Unclosed string');
@@ -266,18 +270,35 @@ function tokenizeExpr(expr: string): string[] {
     }
     if (/[a-zA-Z_]/.test(char)) {
       let id = '';
-      while (pos < expr.length && /[a-zA-Z_\w]/.test(expr[pos])) id += expr[pos++];
+      while (pos < expr.length && /[a-zA-Z_\w]/.test(expr[pos]))
+        id += expr[pos++];
       tokens.push(id);
       continue;
     }
     // Three-char ops
     const three = expr.slice(pos, pos + 3);
-    if (three === '<=>') { tokens.push(three); pos += 3; continue; }
+    if (three === '<=>') {
+      tokens.push(three);
+      pos += 3;
+      continue;
+    }
     // Two-char ops
     const two = expr.slice(pos, pos + 2);
-    if (['&&', '||', '!=', '>=', '<=', '==', '=>'].includes(two)) { tokens.push(two); pos += 2; continue; }
+    if (['&&', '||', '!=', '>=', '<=', '==', '=>'].includes(two)) {
+      tokens.push(two);
+      pos += 2;
+      continue;
+    }
     // Single char ops/symbols
-    if (['!', '+', '-', '*', '/', '%', '^', '>', '<', '(', ')', ','].includes(char)) { tokens.push(char); pos++; continue; }
+    if (
+      ['!', '+', '-', '*', '/', '%', '^', '>', '<', '(', ')', ','].includes(
+        char
+      )
+    ) {
+      tokens.push(char);
+      pos++;
+      continue;
+    }
     throw new Error(`Unsupported operator or token '${char}'`);
   }
   return tokens;
@@ -308,8 +329,10 @@ export function evalExpr(
   trace: string[] = [], // Added trace param
   tracing = false // Added tracing flag
 ): any {
-  if (tracing && tree.op) trace.push(`Applying operator ${tree.op} at line ${line}`);
-  if (tracing && tree.func) trace.push(`Calling function ${tree.func} at line ${line}`);
+  if (tracing && tree.op)
+    trace.push(`Applying operator ${tree.op} at line ${line}`);
+  if (tracing && tree.func)
+    trace.push(`Calling function ${tree.func} at line ${line}`);
   if (tree.value !== undefined) {
     const value = context[tree.value] || tree.value;
     if (tracing) trace.push(`Resolved value: ${value}`);
@@ -317,8 +340,13 @@ export function evalExpr(
   }
   if (tree.func) {
     const args =
-      tree.args?.map((a) => evalExpr(a, context, errors, line, trace, tracing)) || [];
-    if (tracing) trace.push(`Calling function ${tree.func} with args: ${JSON.stringify(args)}`);
+      tree.args?.map((a) =>
+        evalExpr(a, context, errors, line, trace, tracing)
+      ) || [];
+    if (tracing)
+      trace.push(
+        `Calling function ${tree.func} with args: ${JSON.stringify(args)}`
+      );
     if (tree.func === 'error') {
       return { type: 'error', message: args[0] };
     }

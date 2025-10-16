@@ -91,27 +91,42 @@ export function evaluate(
   }
 
   // Evaluate expression tree (updated for better func handling and tracing)
-  function evalTree(tree: ExprNode | null, context: Record<string, any>, targetTrace: string[] = trace, tracing = false): any {
+  function evalTree(
+    tree: ExprNode | null,
+    context: Record<string, any>,
+    targetTrace: string[] = trace,
+    tracing = false
+  ): any {
     if (!tree || typeof tree !== 'object') {
       errors.push({
         type: 'runtime',
         message: 'Invalid expression tree for evaluation',
-        line: tree && 'line' in tree ? (tree as any).line ?? 0 : 0,
+        line: tree && 'line' in tree ? ((tree as any).line ?? 0) : 0,
       });
       return null;
     }
-    if (tracing && (tree.op || tree.func)) targetTrace.push(`Evaluating expression at line ${tree.line || 'unknown'}`);
+    if (tracing && (tree.op || tree.func))
+      targetTrace.push(
+        `Evaluating expression at line ${tree.line || 'unknown'}`
+      );
     if (tree.value !== undefined) {
       const val =
         context[tree.value as string] !== undefined
           ? context[tree.value as string]
           : tree.value;
-      if (tracing && typeof val !== 'string') targetTrace.push(`Resolved value: ${val}`);
+      if (tracing && typeof val !== 'string')
+        targetTrace.push(`Resolved value: ${val}`);
       return val;
     }
     if (tree.func) {
-      const args = tree.args?.map((a: ExprNode) => evalTree(a, context, targetTrace, tracing)) || [];
-      if (tracing) targetTrace.push(`Calling function ${tree.func} with args: ${JSON.stringify(args)}`);
+      const args =
+        tree.args?.map((a: ExprNode) =>
+          evalTree(a, context, targetTrace, tracing)
+        ) || [];
+      if (tracing)
+        targetTrace.push(
+          `Calling function ${tree.func} with args: ${JSON.stringify(args)}`
+        );
       if (tree.func === 'error') return { type: 'error', message: args[0] };
       if (tree.func === 'path') {
         if (args.length !== 3) {
@@ -133,11 +148,7 @@ export function evaluate(
           return null;
         }
         if (
-          !(
-            graph &&
-            graph.nodes instanceof Set &&
-            graph.edges instanceof Map
-          )
+          !(graph && graph.nodes instanceof Set && graph.edges instanceof Map)
         ) {
           errors.push({
             type: 'runtime',
@@ -212,7 +223,8 @@ export function evaluate(
       const func = rules.get(tree.func);
       if (func) {
         const result = func(...args, targetTrace, tracing);
-        if (tracing) targetTrace.push(`Function ${tree.func} returned: ${result}`);
+        if (tracing)
+          targetTrace.push(`Function ${tree.func} returned: ${result}`);
         return result;
       }
       errors.push({
@@ -223,9 +235,14 @@ export function evaluate(
       });
       return null;
     }
-    const left = tree.left ? evalTree(tree.left, context, targetTrace, tracing) : undefined;
-    const right = tree.right ? evalTree(tree.right, context, targetTrace, tracing) : undefined;
-    if (tracing) targetTrace.push(`Applying operator ${tree.op} to ${left} and ${right}`);
+    const left = tree.left
+      ? evalTree(tree.left, context, targetTrace, tracing)
+      : undefined;
+    const right = tree.right
+      ? evalTree(tree.right, context, targetTrace, tracing)
+      : undefined;
+    if (tracing)
+      targetTrace.push(`Applying operator ${tree.op} to ${left} and ${right}`);
     switch (tree.op) {
       case '+':
         return Number(left) + Number(right);
@@ -283,7 +300,12 @@ export function evaluate(
   }
 
   // Process queries recursively (updated for chain support)
-  function processQuery(node: AstNode, context: Record<string, any>, targetTrace: string[] = trace, tracing = false) {
+  function processQuery(
+    node: AstNode,
+    context: Record<string, any>,
+    targetTrace: string[] = trace,
+    tracing = false
+  ) {
     if (node.type === 'counterfactual' || node.type === 'branch') {
       processBranch(node, context);
       return;
@@ -292,7 +314,7 @@ export function evaluate(
     let expr = node.text || ''; // Removed attributes.eval, assume text is expression
     let currentValue;
     if (node.attributes.chain) {
-      const chain = node.attributes.chain.split(' => ').map(s => s.trim());
+      const chain = node.attributes.chain.split(' => ').map((s) => s.trim());
       const target = context[node.attributes.target];
       if (target === undefined) {
         errors.push({
@@ -307,7 +329,12 @@ export function evaluate(
         const ruleTree = exprTrees.get(step);
         if (ruleTree) {
           if (tracing) targetTrace.push(`Applying ${step} to ${currentValue}`);
-          currentValue = evalTree(ruleTree, { ...context, item: currentValue }, targetTrace, tracing); // Use 'item' for chained input
+          currentValue = evalTree(
+            ruleTree,
+            { ...context, item: currentValue },
+            targetTrace,
+            tracing
+          ); // Use 'item' for chained input
         } else {
           errors.push({
             type: 'runtime',
@@ -326,7 +353,8 @@ export function evaluate(
           type: 'syntax',
           message: e.message,
           line: node.line,
-          suggestedFix: 'Check for supported operators or syntax errors in the expression',
+          suggestedFix:
+            'Check for supported operators or syntax errors in the expression',
         });
         return;
       }
@@ -412,7 +440,8 @@ export function evaluate(
           type: 'syntax',
           message: e.message,
           line: node.line,
-          suggestedFix: 'Check for supported operators or syntax errors in the expression',
+          suggestedFix:
+            'Check for supported operators or syntax errors in the expression',
         });
         return;
       }
@@ -449,7 +478,9 @@ export function evaluate(
         ? { result: resultBool, count: matches }
         : resultBool;
     }
-    node.children.forEach((child) => processQuery(child, context, targetTrace, tracing));
+    node.children.forEach((child) =>
+      processQuery(child, context, targetTrace, tracing)
+    );
   }
 
   // Process assertions
@@ -463,7 +494,8 @@ export function evaluate(
         type: 'syntax',
         message: e.message,
         line: node.line,
-        suggestedFix: 'Check for supported operators or syntax errors in the expression',
+        suggestedFix:
+          'Check for supported operators or syntax errors in the expression',
       });
       return;
     }
@@ -497,7 +529,8 @@ export function evaluate(
         type: 'syntax',
         message: e.message,
         line: node.line,
-        suggestedFix: 'Check for supported operators or syntax errors in the expression',
+        suggestedFix:
+          'Check for supported operators or syntax errors in the expression',
       });
       return;
     }
@@ -537,12 +570,18 @@ export function evaluate(
     const ifStr = node.attributes.if;
     if (ifStr) {
       const newContext = deepClone(context);
-      ifStr.split(',').forEach(ass => {
-        const [key, val] = ass.split('=').map(s => s.trim());
+      ifStr.split(',').forEach((ass) => {
+        const [key, val] = ass.split('=').map((s) => s.trim());
         const existingType = symbols.get(key)?.type || 'any';
-        newContext[key] = parseValue(val, existingType, symbols, errors, node.line);
+        newContext[key] = parseValue(
+          val,
+          existingType,
+          symbols,
+          errors,
+          node.line
+        );
       });
-      node.children.forEach(child => processQuery(child, newContext));
+      node.children.forEach((child) => processQuery(child, newContext));
     }
   }
 

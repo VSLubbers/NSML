@@ -153,7 +153,10 @@ export function lex(input: string): Token[] {
     while (pos < input.length) {
       if (input[pos] === '<') {
         // Check if it's a valid tag start (opening or closing)
-        if (pos + 1 < input.length && ( /[\w:]/.test(input[pos + 1]) || input[pos + 1] === '/' )) {
+        if (
+          pos + 1 < input.length &&
+          (/[\w:]/.test(input[pos + 1]) || input[pos + 1] === '/')
+        ) {
           // Valid tag, break for text
           break;
         } else {
@@ -169,7 +172,12 @@ export function lex(input: string): Token[] {
       column++;
     }
     if (value) {
-      tokens.push({ type: 'text', value, line: line, column: column - value.length });
+      tokens.push({
+        type: 'text',
+        value,
+        line: line,
+        column: column - value.length,
+      });
       continue;
     }
     throw new Error(

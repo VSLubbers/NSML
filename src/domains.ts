@@ -15,7 +15,9 @@ export const domainRegistry = new Map<
 // registerDomain('math', (node, context) => { /* implement math logic */ });
 // This allows scaling to BBH tasks like arithmetic or logic puzzles without core changes.
 domainRegistry.set('chess', (node: AstNode, context: SymbolTable) => {
-  const fen = node.attributes.fen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'; // Default starting FEN
+  const fen =
+    node.attributes.fen ||
+    'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'; // Default starting FEN
   const moves = node.attributes.moves?.split(',') || [];
   const validate = node.attributes.validate === 'true';
   const executeMoves = node.attributes.execute === 'true';
@@ -24,27 +26,35 @@ domainRegistry.set('chess', (node: AstNode, context: SymbolTable) => {
   let turn = fen.split(' ')[1] === 'w' ? 'white' : 'black'; // Simplified, assumes starting turn
   // For validation, simulate moves on a temp board
   if (validate) {
-    let tempBoard = board.map(row => [...row]);
+    let tempBoard = board.map((row) => [...row]);
     let tempTurn = turn;
     for (const move of moves) {
       if (!/^[a-h][1-8]-[a-h][1-8]$/.test(move)) {
         return {
           result: false,
-          error: { type: 'runtime', message: `Invalid algebraic move '${move}'`, line: node.line },
+          error: {
+            type: 'runtime',
+            message: `Invalid algebraic move '${move}'`,
+            line: node.line,
+          },
         };
       }
       const [from, to] = move.split('-');
       if (!isLegalMove(tempBoard, from, to, tempTurn)) {
         return {
           result: false,
-          error: { type: 'runtime', message: `Illegal move '${move}' on current board`, line: node.line },
+          error: {
+            type: 'runtime',
+            message: `Illegal move '${move}' on current board`,
+            line: node.line,
+          },
         };
       }
       tempBoard = applyMove(tempBoard, from, to);
       tempTurn = tempTurn === 'white' ? 'black' : 'white';
     }
   }
-  let currentBoard = board.map(row => [...row]); // Copy board
+  let currentBoard = board.map((row) => [...row]); // Copy board
   let currentTurn = turn;
   if (executeMoves) {
     for (const move of moves) {
@@ -55,7 +65,11 @@ domainRegistry.set('chess', (node: AstNode, context: SymbolTable) => {
       } else {
         return {
           result: null,
-          error: { type: 'runtime', message: `Cannot execute illegal move '${move}'`, line: node.line },
+          error: {
+            type: 'runtime',
+            message: `Cannot execute illegal move '${move}'`,
+            line: node.line,
+          },
         };
       }
     }
@@ -111,12 +125,21 @@ function toFEN(board: string[][]): string {
   return rows.join('/');
 }
 // Check if move is legal (basic rules for all pieces, no check validation)
-function isLegalMove(board: string[][], from: string, to: string, turn: string): boolean {
+function isLegalMove(
+  board: string[][],
+  from: string,
+  to: string,
+  turn: string
+): boolean {
   const [fx, fy] = squareToCoord(from);
   const [tx, ty] = squareToCoord(to);
   const piece = board[fy][fx];
   if (piece === '.') return false;
-  if ((turn === 'white' && piece.toLowerCase() === piece) || (turn === 'black' && piece.toUpperCase() === piece)) return false; // Wrong turn
+  if (
+    (turn === 'white' && piece.toLowerCase() === piece) ||
+    (turn === 'black' && piece.toUpperCase() === piece)
+  )
+    return false; // Wrong turn
   const dx = tx - fx;
   const dy = ty - fy;
   const absDx = Math.abs(dx);
@@ -125,15 +148,22 @@ function isLegalMove(board: string[][], from: string, to: string, turn: string):
     case 'p': // Pawn
       const dir = piece === 'P' ? -1 : 1;
       const startingRank = piece === 'P' ? 6 : 1;
-      if (absDx === 0) { // Forward
+      if (absDx === 0) {
+        // Forward
         if (dy === dir && board[ty][tx] === '.') {
           return true;
         }
-        if (dy === 2 * dir && fy === startingRank && board[fy + dir][fx] === '.' && board[ty][tx] === '.') {
+        if (
+          dy === 2 * dir &&
+          fy === startingRank &&
+          board[fy + dir][fx] === '.' &&
+          board[ty][tx] === '.'
+        ) {
           return true;
         }
         return false;
-      } else if (absDx === 1 && dy === dir) { // Capture
+      } else if (absDx === 1 && dy === dir) {
+        // Capture
         return board[ty][tx] !== '.' && isOpponent(piece, board[ty][tx]);
       }
       return false;
@@ -141,7 +171,8 @@ function isLegalMove(board: string[][], from: string, to: string, turn: string):
       if (dx !== 0 && dy !== 0) return false;
       return isClearPath(board, fx, fy, tx, ty, piece);
     case 'n': // Knight
-      if (!((absDx === 1 && absDy === 2) || (absDx === 2 && absDy === 1))) return false;
+      if (!((absDx === 1 && absDy === 2) || (absDx === 2 && absDy === 1)))
+        return false;
       return board[ty][tx] === '.' || isOpponent(piece, board[ty][tx]);
     case 'b': // Bishop
       if (absDx !== absDy) return false;
@@ -158,7 +189,7 @@ function isLegalMove(board: string[][], from: string, to: string, turn: string):
 }
 // Apply move (swap positions, capture if opponent)
 function applyMove(board: string[][], from: string, to: string): string[][] {
-  const newBoard = board.map(row => [...row]);
+  const newBoard = board.map((row) => [...row]);
   const [fx, fy] = squareToCoord(from);
   const [tx, ty] = squareToCoord(to);
   newBoard[ty][tx] = newBoard[fy][fx];
@@ -166,10 +197,19 @@ function applyMove(board: string[][], from: string, to: string): string[][] {
   return newBoard;
 }
 // Get possible moves for a piece at square
-function getPossibleMoves(board: string[][], square: string, turn: string): string[] {
+function getPossibleMoves(
+  board: string[][],
+  square: string,
+  turn: string
+): string[] {
   const [x, y] = squareToCoord(square);
   const piece = board[y][x];
-  if (piece === '.' || (turn === 'white' && piece.toLowerCase() === piece) || (turn === 'black' && piece.toUpperCase() === piece)) return [];
+  if (
+    piece === '.' ||
+    (turn === 'white' && piece.toLowerCase() === piece) ||
+    (turn === 'black' && piece.toUpperCase() === piece)
+  )
+    return [];
   const moves: string[] = [];
   const pieceType = piece.toLowerCase();
   const dir = pieceType === 'p' ? (piece === 'P' ? -1 : 1) : 0;
@@ -182,14 +222,25 @@ function getPossibleMoves(board: string[][], square: string, turn: string): stri
       moves.push(coordToSquare(nx, ny));
     }
     // Forward 2
-    if (y === startingRank && board[y + dir][x] === '.' && board[y + 2 * dir][x] === '.') {
+    if (
+      y === startingRank &&
+      board[y + dir][x] === '.' &&
+      board[y + 2 * dir][x] === '.'
+    ) {
       moves.push(coordToSquare(x, y + 2 * dir));
     }
     // Captures
     for (const dx of [-1, 1]) {
       const cx = x + dx;
       const cy = y + dir;
-      if (cx >= 0 && cx < 8 && cy >= 0 && cy < 8 && board[cy][cx] !== '.' && isOpponent(piece, board[cy][cx])) {
+      if (
+        cx >= 0 &&
+        cx < 8 &&
+        cy >= 0 &&
+        cy < 8 &&
+        board[cy][cx] !== '.' &&
+        isOpponent(piece, board[cy][cx])
+      ) {
         moves.push(coordToSquare(cx, cy));
       }
     }
@@ -218,16 +269,66 @@ function getPossibleMoves(board: string[][], square: string, turn: string): stri
 // Helper: Get directions for piece type (sliding or not)
 function getPieceDirections(piece: string): [number, number][] {
   switch (piece) {
-    case 'r': return [[0, 1], [0, -1], [1, 0], [-1, 0]]; // Rook
-    case 'n': return [[1, 2], [1, -2], [-1, 2], [-1, -2], [2, 1], [2, -1], [-2, 1], [-2, -1]]; // Knight
-    case 'b': return [[1, 1], [1, -1], [-1, 1], [-1, -1]]; // Bishop
-    case 'q': return [[0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]]; // Queen
-    case 'k': return [[0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]]; // King
-    default: return [];
+    case 'r':
+      return [
+        [0, 1],
+        [0, -1],
+        [1, 0],
+        [-1, 0],
+      ]; // Rook
+    case 'n':
+      return [
+        [1, 2],
+        [1, -2],
+        [-1, 2],
+        [-1, -2],
+        [2, 1],
+        [2, -1],
+        [-2, 1],
+        [-2, -1],
+      ]; // Knight
+    case 'b':
+      return [
+        [1, 1],
+        [1, -1],
+        [-1, 1],
+        [-1, -1],
+      ]; // Bishop
+    case 'q':
+      return [
+        [0, 1],
+        [0, -1],
+        [1, 0],
+        [-1, 0],
+        [1, 1],
+        [1, -1],
+        [-1, 1],
+        [-1, -1],
+      ]; // Queen
+    case 'k':
+      return [
+        [0, 1],
+        [0, -1],
+        [1, 0],
+        [-1, 0],
+        [1, 1],
+        [1, -1],
+        [-1, 1],
+        [-1, -1],
+      ]; // King
+    default:
+      return [];
   }
 }
 // Helper: Check if path is clear for sliding pieces
-function isClearPath(board: string[][], fx: number, fy: number, tx: number, ty: number, piece: string): boolean {
+function isClearPath(
+  board: string[][],
+  fx: number,
+  fy: number,
+  tx: number,
+  ty: number,
+  piece: string
+): boolean {
   const dx = Math.sign(tx - fx);
   const dy = Math.sign(ty - fy);
   let x = fx + dx;
@@ -242,7 +343,9 @@ function isClearPath(board: string[][], fx: number, fy: number, tx: number, ty: 
 // Helper: Check if pieces are opponents
 function isOpponent(piece1: string, piece2: string): boolean {
   if (piece2 === '.') return false; // Explicit check for empty
-  return (piece1.toLowerCase() === piece1) !== (piece2.toLowerCase() === piece2);
+  return (
+    (piece1.toLowerCase() === piece1) !== (piece2.toLowerCase() === piece2)
+  );
 }
 // Helper: Convert square (e.g., 'e2') to coord [file 0-7, rank 0-7]
 function squareToCoord(square: string): [number, number] {
@@ -258,7 +361,14 @@ function coordToSquare(x: number, y: number): string {
 domainRegistry.set('math', (node: AstNode, context: SymbolTable) => {
   let expression = node.attributes.expression || node.text || '';
   if (!expression) {
-    return { result: null, error: { type: 'semantic', message: 'Missing expression attribute or text', line: node.line } };
+    return {
+      result: null,
+      error: {
+        type: 'semantic',
+        message: 'Missing expression attribute or text',
+        line: node.line,
+      },
+    };
   }
   // Pre-process for implicit multiplication (e.g., '2x' -> '2*x')
   expression = expression.replace(/(\d)([a-zA-Z_])/g, '$1*$2');
@@ -266,31 +376,57 @@ domainRegistry.set('math', (node: AstNode, context: SymbolTable) => {
   for (const [k, v] of context) {
     valueContext[k] = v.value;
   }
-  if (expression.includes('=')) { // Solve equation
-    const [left, right] = expression.split('=').map(s => s.trim());
+  if (expression.includes('=')) {
+    // Solve equation
+    const [left, right] = expression.split('=').map((s) => s.trim());
     const leftTree = parseExpression(left);
     const rightTree = parseExpression(right);
     if (!leftTree || !rightTree) {
-      return { result: null, error: { type: 'syntax', message: 'Invalid equation format', line: node.line } };
+      return {
+        result: null,
+        error: {
+          type: 'syntax',
+          message: 'Invalid equation format',
+          line: node.line,
+        },
+      };
     }
     const c = evalExpr(rightTree, valueContext, [], node.line);
     const { a, b } = getLinearTerms(leftTree, 'x');
     if (a === 0) {
-      return { result: null, error: { type: 'runtime', message: 'Non-linear or no variable equation', line: node.line } };
+      return {
+        result: null,
+        error: {
+          type: 'runtime',
+          message: 'Non-linear or no variable equation',
+          line: node.line,
+        },
+      };
     }
     const x = (c - b) / a;
     return { result: { x } };
-  } else { // Evaluate expression
+  } else {
+    // Evaluate expression
     const tree = parseExpression(expression);
     if (!tree) {
-      return { result: null, error: { type: 'syntax', message: 'Invalid math expression', line: node.line } };
+      return {
+        result: null,
+        error: {
+          type: 'syntax',
+          message: 'Invalid math expression',
+          line: node.line,
+        },
+      };
     }
     const result = evalExpr(tree, valueContext, [], node.line);
     return { result };
   }
 });
 // Helper for math: Extract coefficient a and constant b for ax + b
-function getLinearTerms(tree: ExprNode, varName: string): { a: number; b: number } {
+function getLinearTerms(
+  tree: ExprNode,
+  varName: string
+): { a: number; b: number } {
   if (tree.value !== undefined) {
     if (tree.value === varName) return { a: 1, b: 0 };
     if (typeof tree.value === 'number') return { a: 0, b: tree.value };
@@ -307,8 +443,10 @@ function getLinearTerms(tree: ExprNode, varName: string): { a: number; b: number
     return { a: left.a - right.a, b: left.b - right.b };
   }
   if (tree.op === '*') {
-    if (tree.left?.value === varName && typeof tree.right?.value === 'number') return { a: tree.right.value, b: 0 };
-    if (tree.right?.value === varName && typeof tree.left?.value === 'number') return { a: tree.left.value, b: 0 };
+    if (tree.left?.value === varName && typeof tree.right?.value === 'number')
+      return { a: tree.right.value, b: 0 };
+    if (tree.right?.value === varName && typeof tree.left?.value === 'number')
+      return { a: tree.left.value, b: 0 };
   }
   return { a: 0, b: 0 }; // Unsupported
 }

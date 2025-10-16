@@ -115,7 +115,8 @@ class Parser {
     const close = this.peek();
     if (close?.type === 'closeTag' && close.value === node.type) {
       this.consume('closeTag');
-    } else if (this.errors.length === startErrors) { // Add only if no new errors from children
+    } else if (this.errors.length === startErrors) {
+      // Add only if no new errors from children
       this.errors.push({
         type: 'syntax',
         message: `Expected closing tag for ${node.type}`,

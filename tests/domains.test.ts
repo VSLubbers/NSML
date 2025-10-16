@@ -133,7 +133,9 @@ describe('NSML Domain Hooks', () => {
     const { rules } = compileRules(ast, symbols);
     const result = evaluate(ast, symbols, rules);
     expect(result.errors).toHaveLength(0);
-    expect(result.results.chessTest.fen).toContain('rnbqkbnr/pppp1ppp/8/4p3/4P3');
+    expect(result.results.chessTest.fen).toContain(
+      'rnbqkbnr/pppp1ppp/8/4p3/4P3'
+    );
     expect(result.results.chessTest.queryResult.length).toBeGreaterThan(0); // d3, d4
   });
   // Tests for math hook
