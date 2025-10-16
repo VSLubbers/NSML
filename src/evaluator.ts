@@ -470,180 +470,195 @@ export async function evaluate(
   }
 
   // Process queries recursively (updated for chain support)
-  function processQuery(node: AstNode, context: Record<string, any>, targetTrace: string[] = trace, tracing = false) {
-  if (node.type === 'counterfactual' || node.type === 'branch') {
-    processBranch(node, context);
-    return;
-  }
-  const name = node.attributes.name || 'anonymous';
-  let expr = node.text || ''; // Removed attributes.eval, assume text is expression
-  let currentValue;
-  if (node.attributes.chain) {
-    const chain = node.attributes.chain.split(' => ').map(s => s.trim());
-    const target = context[node.attributes.target];
-    if (target === undefined) {
-      errors.push({
-        type: 'semantic',
-        message: `Missing target for chained query '${name}'`,
-        line: node.line,
-      });
+  function processQuery(
+    node: AstNode,
+    context: Record<string, any>,
+    targetTrace: string[] = trace,
+    tracing = false
+  ) {
+    if (node.type === 'counterfactual' || node.type === 'branch') {
+      processBranch(node, context);
       return;
     }
-    currentValue = target;
-    for (const step of chain) {
-      const ruleTree = exprTrees.get(step);
-      if (ruleTree) {
-        if (tracing) targetTrace.push(`Applying ${step} to ${currentValue}`);
-        currentValue = evalTree(ruleTree, { ...context, item: currentValue }, targetTrace, tracing); // Use 'item' for chained input
-      } else {
+    const name = node.attributes.name || 'anonymous';
+    let expr = node.text || ''; // Removed attributes.eval, assume text is expression
+    let currentValue;
+    if (node.attributes.chain) {
+      const chain = node.attributes.chain.split(' => ').map((s) => s.trim());
+      const target = context[node.attributes.target];
+      if (target === undefined) {
         errors.push({
-          type: 'runtime',
-          message: `Unknown step '${step}' in chain for '${name}'`,
+          type: 'semantic',
+          message: `Missing target for chained query '${name}'`,
           line: node.line,
         });
         return;
       }
-    }
-  } else if (expr) {
-    let tree;
-    try {
-      tree = parseExpression(expr, node.line);
-    } catch (e: any) {
-      errors.push({
-        type: 'syntax',
-        message: e.message,
-        line: node.line,
-        suggestedFix: 'Check for supported operators or syntax errors in the expression',
-      });
-      return;
-    }
-    if (tree) {
-      currentValue = evalTree(tree, context, targetTrace, tracing);
-    } else {
-      errors.push({
-        type: 'runtime',
-        message: `Invalid expression in query '${name}'`,
-        line: node.line,
-        suggestedFix: 'Check syntax of expression',
-      });
-      return;
-    }
-  }
-  if (currentValue !== undefined) {
-    if (currentValue instanceof Set) {
-      currentValue = Array.from(currentValue).sort((a, b) => (typeof a === 'number' && typeof b === 'number' ? a - b : 0)); // Sort numbers for consistent output
-    }
-    results[name] = currentValue;
-  }
-  if (node.type === 'aggregate') {
-    const func = node.attributes.func;
-    const over = context[node.attributes.over];
-    if (Array.isArray(over) || over instanceof Set) {
-      const vals = Array.from(over)
-        .map((v) => Number(v))
-        .filter((v) => !isNaN(v)); // Filter valid numbers
-      if (vals.length === 0) {
-        errors.push({
-          type: 'runtime',
-          message: `No valid numbers in aggregate '${name}'`,
-          line: node.line,
-        });
-        return;
-      }
-      let aggResult: number | undefined;
-      switch (func) {
-        case 'count':
-          aggResult = vals.length;
-          break;
-        case 'sum':
-          aggResult = vals.reduce((a, b) => a + b, 0);
-          break;
-        case 'min':
-          aggResult = Math.min(...vals);
-          break;
-        case 'max':
-          aggResult = Math.max(...vals);
-          break;
-        case 'avg':
-          aggResult = vals.reduce((a, b) => a + b, 0) / vals.length;
-          break;
-        default:
+      currentValue = target;
+      for (const step of chain) {
+        const ruleTree = exprTrees.get(step);
+        if (ruleTree) {
+          if (tracing) targetTrace.push(`Applying ${step} to ${currentValue}`);
+          currentValue = evalTree(
+            ruleTree,
+            { ...context, item: currentValue },
+            targetTrace,
+            tracing
+          ); // Use 'item' for chained input
+        } else {
           errors.push({
-            type: 'semantic',
-            message: `Unknown aggregate func '${func}'`,
+            type: 'runtime',
+            message: `Unknown step '${step}' in chain for '${name}'`,
             line: node.line,
           });
           return;
+        }
       }
-      results[name] = aggResult;
-    } else {
-      errors.push({
-        type: 'runtime',
-        message: `Invalid collection for aggregate '${name}'`,
-        line: node.line,
-      });
+    } else if (expr) {
+      let tree;
+      try {
+        tree = parseExpression(expr, node.line);
+      } catch (e: any) {
+        errors.push({
+          type: 'syntax',
+          message: e.message,
+          line: node.line,
+          suggestedFix:
+            'Check for supported operators or syntax errors in the expression',
+        });
+        return;
+      }
+      if (tree) {
+        currentValue = evalTree(tree, context, targetTrace, tracing);
+      } else {
+        errors.push({
+          type: 'runtime',
+          message: `Invalid expression in query '${name}'`,
+          line: node.line,
+          suggestedFix: 'Check syntax of expression',
+        });
+        return;
+      }
     }
+    if (currentValue !== undefined) {
+      if (currentValue instanceof Set) {
+        currentValue = Array.from(currentValue).sort((a, b) =>
+          typeof a === 'number' && typeof b === 'number' ? a - b : 0
+        ); // Sort numbers for consistent output
+      }
+      results[name] = currentValue;
+    }
+    if (node.type === 'aggregate') {
+      const func = node.attributes.func;
+      const over = context[node.attributes.over];
+      if (Array.isArray(over) || over instanceof Set) {
+        const vals = Array.from(over)
+          .map((v) => Number(v))
+          .filter((v) => !isNaN(v)); // Filter valid numbers
+        if (vals.length === 0) {
+          errors.push({
+            type: 'runtime',
+            message: `No valid numbers in aggregate '${name}'`,
+            line: node.line,
+          });
+          return;
+        }
+        let aggResult: number | undefined;
+        switch (func) {
+          case 'count':
+            aggResult = vals.length;
+            break;
+          case 'sum':
+            aggResult = vals.reduce((a, b) => a + b, 0);
+            break;
+          case 'min':
+            aggResult = Math.min(...vals);
+            break;
+          case 'max':
+            aggResult = Math.max(...vals);
+            break;
+          case 'avg':
+            aggResult = vals.reduce((a, b) => a + b, 0) / vals.length;
+            break;
+          default:
+            errors.push({
+              type: 'semantic',
+              message: `Unknown aggregate func '${func}'`,
+              line: node.line,
+            });
+            return;
+        }
+        results[name] = aggResult;
+      } else {
+        errors.push({
+          type: 'runtime',
+          message: `Invalid collection for aggregate '${name}'`,
+          line: node.line,
+        });
+      }
+    }
+    if (node.type === 'exists' || node.type === 'forall') {
+      const collection = context[node.attributes.in];
+      const conditionExpr = node.attributes.condition;
+      const countMode = node.attributes.count === 'true';
+      if (!conditionExpr) {
+        errors.push({
+          type: 'semantic',
+          message: `Missing condition for ${node.type}`,
+          line: node.line,
+        });
+        return;
+      }
+      let tree;
+      try {
+        tree = parseExpression(conditionExpr, node.line);
+      } catch (e: any) {
+        errors.push({
+          type: 'syntax',
+          message: e.message,
+          line: node.line,
+          suggestedFix:
+            'Check for supported operators or syntax errors in the expression',
+        });
+        return;
+      }
+      if (!tree) {
+        errors.push({
+          type: 'runtime',
+          message: `Invalid condition in ${node.type}`,
+          line: node.line,
+        });
+        return;
+      }
+      if (!Array.isArray(collection) && !(collection instanceof Set)) {
+        errors.push({
+          type: 'runtime',
+          message: `Invalid collection for ${node.type}`,
+          line: node.line,
+        });
+        return;
+      }
+      const items = Array.from(collection);
+      let matches = 0;
+      for (const item of items) {
+        const itemContext = { ...context, item }; // Assume condition uses 'item' var
+        if (evalTree(tree, itemContext, targetTrace, tracing)) matches++;
+      }
+      let resultBool: boolean;
+      if (node.type === 'exists') {
+        resultBool = matches > 0;
+      } else {
+        // forall
+        resultBool = matches === items.length;
+      }
+      results[name] = countMode
+        ? { result: resultBool, count: matches }
+        : resultBool;
+    }
+    node.children.forEach((child) =>
+      processQuery(child, context, targetTrace, tracing)
+    );
   }
-  if (node.type === 'exists' || node.type === 'forall') {
-    const collection = context[node.attributes.in];
-    const conditionExpr = node.attributes.condition;
-    const countMode = node.attributes.count === 'true';
-    if (!conditionExpr) {
-      errors.push({
-        type: 'semantic',
-        message: `Missing condition for ${node.type}`,
-        line: node.line,
-      });
-      return;
-    }
-    let tree;
-    try {
-      tree = parseExpression(conditionExpr, node.line);
-    } catch (e: any) {
-      errors.push({
-        type: 'syntax',
-        message: e.message,
-        line: node.line,
-        suggestedFix:
-          'Check for supported operators or syntax errors in the expression',
-      });
-      return;
-    }
-    if (!tree) {
-      errors.push({
-        type: 'runtime',
-        message: `Invalid condition in ${node.type}`,
-        line: node.line,
-      });
-      return;
-    }
-    if (!Array.isArray(collection) && !(collection instanceof Set)) {
-      errors.push({
-        type: 'runtime',
-        message: `Invalid collection for ${node.type}`,
-        line: node.line,
-      });
-      return;
-    }
-    const items = Array.from(collection);
-    let matches = 0;
-    for (const item of items) {
-      const itemContext = { ...context, item }; // Assume condition uses 'item' var
-      if (evalTree(tree, itemContext, targetTrace, tracing)) matches++;
-    }
-    let resultBool: boolean;
-    if (node.type === 'exists') {
-      resultBool = matches > 0;
-    } else {
-      // forall
-      resultBool = matches === items.length;
-    }
-    results[name] = countMode
-      ? { result: resultBool, count: matches }
-      : resultBool;
-  }
-  node.children.forEach((child) => processQuery(child, context, targetTrace, tracing));
-}
 
   // Process assertions
   function processAssertion(node: AstNode, context: Record<string, any>) {
