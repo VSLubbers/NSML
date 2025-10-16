@@ -12,7 +12,6 @@ function unescape(str: string): string {
     .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'");
-  console.log(`Unescaping: "${str}" to "${result}"`); // Added logging
   return result;
 }
 class Parser {

@@ -5,6 +5,7 @@ import { parse } from '../src/parser';
 import { resolve } from '../src/resolver';
 import { compileRules } from '../src/compiler';
 import { evaluate } from '../src/evaluator';
+
 describe('NSML Domain Hooks', () => {
   it('should register and call chess hook with basic validation', () => {
     const mockNode: AstNode = {
@@ -123,15 +124,14 @@ describe('NSML Domain Hooks', () => {
     );
     expect(result.result).toBe('custom');
   });
-  it('should integrate chess hook in full evaluation', () => {
+  it('should integrate chess hook in full evaluation', async () => {
     const input = `<nsml>
       <chess name="chessTest" moves="e2-e4,e7-e5" validate="true" execute="true" queryPiece="d2" />
     </nsml>`;
     const tokens = lex(input);
     const { ast } = parse(tokens);
     const { symbols } = resolve(ast);
-    const { rules } = compileRules(ast, symbols);
-    const result = evaluate(ast, symbols, rules);
+    const result = await evaluate(ast, symbols);
     expect(result.errors).toHaveLength(0);
     expect(result.results.chessTest.fen).toContain(
       'rnbqkbnr/pppp1ppp/8/4p3/4P3'
@@ -192,7 +192,7 @@ describe('NSML Domain Hooks', () => {
     const { error } = handler!(mockNode, context);
     expect(error?.message).toBe('Invalid math expression');
   });
-  it('should integrate math hook in full evaluation', () => {
+  it('should integrate math hook in full evaluation', async () => {
     const input = `<nsml>
       <symbols>
         <var name="y" type="number" init="10" />
@@ -202,8 +202,7 @@ describe('NSML Domain Hooks', () => {
     const tokens = lex(input);
     const { ast } = parse(tokens);
     const { symbols } = resolve(ast);
-    const { rules } = compileRules(ast, symbols);
-    const result = evaluate(ast, symbols, rules);
+    const result = await evaluate(ast, symbols);
     expect(result.errors).toHaveLength(0);
     expect(result.results.mathTest).toBe(6);
   });

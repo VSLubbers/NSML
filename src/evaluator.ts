@@ -10,6 +10,11 @@ import {
 import { parseExpression, compileRules, evalExpr } from './compiler'; // Updated import for evalExpr
 import { parseValue } from './resolver';
 import { domainRegistry } from './domains';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import { lex } from './lexer';
+import { parse } from './parser';
+import { resolve } from './resolver';
 
 function deepClone(obj: any): any {
   if (obj === null || typeof obj !== 'object') return obj;
@@ -23,16 +28,23 @@ function deepClone(obj: any): any {
   return copy;
 }
 
-export function evaluate(
+export async function evaluate(
   ast: AstNode | null,
-  symbols: SymbolTable,
-  rules: Map<string, Function>
-): EvalResult {
+  symbols: SymbolTable
+): Promise<EvalResult> {
   const results: Record<string, any> = {};
   const errors: EvalError[] = [];
   const trace: string[] = [];
   const tracingTargets = new Set<string>(); // Track targets for tracing during initial eval
   const simulateTraces: Record<string, string[]> = {}; // Per-target traces for order control
+
+  const importedPaths = new Set<string>();
+  const importedItems: {
+    ast: AstNode;
+    alias?: string;
+    scope?: string;
+    src: string;
+  }[] = [];
 
   if (!ast) {
     errors.push({
@@ -43,21 +55,179 @@ export function evaluate(
     return { results, errors, trace };
   }
 
-  // Create value context from symbols
+  // Pre-process imports asynchronously
+  async function preProcessImports(node: AstNode) {
+    if (node.type === 'import') {
+      await handleImport(node);
+    }
+    for (const child of node.children) {
+      await preProcessImports(child);
+    }
+  }
+  await preProcessImports(ast);
+
+  // Initialize rules and exprTrees
+  let rules: Map<string, Function> = new Map();
+  let exprTrees: Map<string, ExprNode> = new Map();
+
+  // Now process imported ASTs to merge symbols and rules
+  for (const item of importedItems) {
+    const namespace = item.alias || '';
+    const importedResolved = resolve(item.ast, namespace);
+    errors.push(...importedResolved.errors);
+    for (const [k, v] of importedResolved.symbols) {
+      if (symbols.has(k)) {
+        errors.push({
+          type: 'semantic',
+          message: `Symbol conflict '${k}' from import '${item.src}'`,
+          suggestedFix: 'Use alias to namespace or resolve duplicate',
+        });
+      } else {
+        symbols.set(k, v);
+      }
+    }
+
+    const importedCompiled = compileRules(item.ast, symbols, namespace);
+    errors.push(...importedCompiled.errors);
+    for (const [k, t] of importedCompiled.exprTrees) {
+      if (exprTrees.has(k)) {
+        errors.push({
+          type: 'semantic',
+          message: `Expression tree conflict '${k}' from import '${item.src}'`,
+          suggestedFix: 'Use alias to namespace or resolve duplicate',
+        });
+      } else {
+        exprTrees.set(k, t);
+      }
+    }
+    for (const [k, f] of importedCompiled.rules) {
+      if (rules.has(k)) {
+        errors.push({
+          type: 'semantic',
+          message: `Rule conflict '${k}' from import '${item.src}'`,
+          suggestedFix: 'Use alias to namespace or resolve duplicate',
+        });
+      } else {
+        rules.set(k, f);
+      }
+    }
+    trace.push(`Merged symbols and rules from ${item.src}`);
+  }
+
+  // Create value context from (merged) symbols
   const valueContext: Record<string, any> = {};
   for (const [k, v] of symbols) {
     valueContext[k] = deepClone(v.value);
   }
 
-  // Get expression trees from compiler
-  const { exprTrees } = compileRules(ast, symbols);
+  // Compile and merge main AST's rules and exprTrees
+  const mainCompiled = compileRules(ast, symbols);
+  errors.push(...mainCompiled.errors);
+  for (const [k, t] of mainCompiled.exprTrees) {
+    if (exprTrees.has(k)) {
+      errors.push({
+        type: 'semantic',
+        message: `Expression tree conflict '${k}' in main`,
+        suggestedFix: 'Resolve duplicate',
+      });
+    } else {
+      exprTrees.set(k, t);
+    }
+  }
+  for (const [k, f] of mainCompiled.rules) {
+    if (rules.has(k)) {
+      errors.push({
+        type: 'semantic',
+        message: `Rule conflict '${k}' in main`,
+        suggestedFix: 'Resolve duplicate',
+      });
+    } else {
+      rules.set(k, f);
+    }
+  }
 
-  // Handle imports (placeholder updated: log for now, full impl in extensions)
-  function handleImport(node: AstNode) {
+  // Process imported ASTs for full scope if specified
+  for (const item of importedItems) {
+    if (item.scope === 'full') {
+      processAllConstraints(item.ast, valueContext);
+      traverse(item.ast, valueContext);
+    }
+  }
+
+  // Note: To make it work, we assume a base directory, here using process.cwd() for simplicity.
+  // For production, consider passing baseDir as a parameter to evaluate.
+  async function handleImport(node: AstNode) {
     const src = node.attributes.src;
     if (src) {
-      trace.push(`Importing ${src} (full loading not implemented yet)`);
-      // TODO: Recursively fetch/parse/merge - requires file system access
+      if (typeof process === 'undefined' || typeof require === 'undefined') {
+        errors.push({
+          type: 'runtime',
+          message:
+            'File imports are not supported in this environment (e.g., browser)',
+          line: node.line,
+          suggestedFix: 'Use a Node.js environment or avoid <import> tags',
+        });
+        return;
+      }
+
+      const atobPoly = (str: string) =>
+        Buffer.from(str, 'base64').toString('binary');
+      const fs = await import(atobPoly('ZnMvcHJvbWlzZXM='));
+      const path = await import(atobPoly('cGF0aA=='));
+
+      const fullPath = path.resolve(process.cwd(), src);
+      if (importedPaths.has(fullPath)) {
+        errors.push({
+          type: 'semantic',
+          message: `Cycle detected importing '${src}'`,
+          line: node.line,
+          suggestedFix: 'Remove cyclic import dependencies',
+        });
+        return;
+      }
+      importedPaths.add(fullPath);
+
+      let content;
+      try {
+        content = await fs.readFile(fullPath, 'utf8');
+      } catch (e: any) {
+        errors.push({
+          type: 'runtime',
+          message: `Failed to read file '${src}': ${e.message}`,
+          line: node.line,
+          suggestedFix: 'Verify the file path and access permissions',
+        });
+        return;
+      }
+
+      trace.push(`Importing ${src}`);
+
+      const tokens = lex(content);
+      const { ast: importedAst, errors: parseErrors } = parse(tokens);
+      if (parseErrors.length > 0) {
+        errors.push(...parseErrors);
+        return;
+      }
+      if (!importedAst) {
+        errors.push({
+          type: 'semantic',
+          message: `Invalid AST from imported file '${src}'`,
+          line: node.line,
+          suggestedFix: 'Check the syntax in the imported file',
+        });
+        return;
+      }
+
+      // Recursively handle nested imports
+      await preProcessImports(importedAst);
+
+      // Store the imported AST for merging
+      importedItems.push({
+        ast: importedAst,
+        alias: node.attributes.as,
+        scope: node.attributes.scope,
+        src,
+      });
     } else {
       errors.push({
         type: 'semantic',
@@ -612,7 +782,6 @@ export function evaluate(
 
   // Traverse AST
   function traverse(node: AstNode, context: Record<string, any>) {
-    if (node.type === 'import') handleImport(node);
     if (domainRegistry.has(node.type)) handleDomain(node, symbols); // Handle domain tags
     if (node.type === 'queries')
       node.children.forEach((child) => {

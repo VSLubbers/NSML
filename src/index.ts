@@ -1,11 +1,11 @@
+// src/index.ts
 // Entry point
 import { lex } from './lexer';
 import { parse } from './parser';
 import { resolve } from './resolver';
-import { compileRules } from './compiler';
 import { evaluate } from './evaluator';
-export function parseNSML(input: string): any {
-  // Full pipeline: lex → parse → resolve → compile → evaluate
+export async function parseNSML(input: string): Promise<any> {
+  // Full pipeline: lex → parse → resolve → evaluate
   const tokens = lex(input);
   const { ast, errors: parseErrors } = parse(tokens);
   if (parseErrors.length > 0 || !ast) {
@@ -15,11 +15,7 @@ export function parseNSML(input: string): any {
   if (resolveErrors.length > 0) {
     return { results: {}, errors: resolveErrors, trace: [] };
   }
-  const { rules, errors: compileErrors } = compileRules(ast, symbols);
-  if (compileErrors.length > 0) {
-    return { results: {}, errors: compileErrors, trace: [] };
-  }
-  return evaluate(ast, symbols, rules);
+  return evaluate(ast, symbols);
 }
 export * from './lexer';
 export * from './parser';

@@ -1,15 +1,14 @@
 // src/compiler.ts
 import { AstNode, SymbolTable, ExprNode, Operator, EvalError } from './types';
-
 interface CompileResult {
   rules: Map<string, Function>;
   exprTrees: Map<string, ExprNode>;
   errors: EvalError[];
 }
-
 export function compileRules(
   ast: AstNode | null,
-  symbols: SymbolTable
+  symbols: SymbolTable,
+  namespace: string = ''
 ): CompileResult {
   const rules = new Map<string, Function>();
   const exprTrees = new Map<string, ExprNode>();
@@ -43,11 +42,17 @@ export function compileRules(
     exprTrees: Map<string, ExprNode>,
     errors: EvalError[]
   ) {
-    const name = node.attributes.name || `anonymous${anonymousCount++}`;
+    const origName = node.attributes.name || `anonymous${anonymousCount++}`;
+    const name = namespace ? `${namespace}.${origName}` : origName;
     const exprStr = node.text || node.attributes.body || '';
     let tree;
     try {
-      tree = parseExpression(exprStr, node.line); // Pass line to parseExpression
+      const paramStr = node.attributes.params || '';
+      const params = paramStr
+        .split(',')
+        .map((p) => p.split(':')[0].trim())
+        .filter((p) => p);
+      tree = parseExpression(exprStr, node.line, namespace, params); // Pass namespace and params
     } catch (e: any) {
       errors.push({
         type: 'syntax',
@@ -102,7 +107,12 @@ export function compileRules(
   return { rules, exprTrees, errors };
 }
 
-export function parseExpression(expr: string, line?: number): ExprNode | null {
+export function parseExpression(
+  expr: string,
+  line?: number,
+  namespace: string = '',
+  params: string[] = []
+): ExprNode | null {
   // Added line param
   expr = expr.replace(/(\d)([a-zA-Z_])/g, '$1*$2');
   const tokens = tokenizeExpr(expr);
@@ -113,16 +123,14 @@ export function parseExpression(expr: string, line?: number): ExprNode | null {
   }
 
   function consume(): string | undefined {
-    const token = tokens[pos];
     return tokens[pos++];
   }
 
   function parsePrimary(): ExprNode | null {
-    const token = consume();
+    let token = consume();
     if (!token) {
       return null;
     }
-
     if (isNumber(token)) {
       return { value: Number(token), line };
     }
@@ -150,7 +158,14 @@ export function parseExpression(expr: string, line?: number): ExprNode | null {
         }
         if (peek() === ')') consume();
         else return null; // Unmatched )
+        const builtins = ['error', 'path', 'eval'];
+        if (!builtins.includes(token) && namespace) {
+          token = `${namespace}.${token}`;
+        }
         return { func: token, args, line };
+      }
+      if (!params.includes(token) && namespace) {
+        token = `${namespace}.${token}`;
       }
       return { value: token, line };
     }
@@ -270,8 +285,8 @@ function tokenizeExpr(expr: string): string[] {
     }
     if (/[a-zA-Z_]/.test(char)) {
       let id = '';
-      while (pos < expr.length && /[a-zA-Z_\w]/.test(expr[pos]))
-        id += expr[pos++];
+      while (pos < expr.length && /[a-zA-Z_\w.]/.test(expr[pos]))
+        id += expr[pos++]; // Allow . for dotted identifiers
       tokens.push(id);
       continue;
     }
@@ -317,7 +332,7 @@ function isString(token: string): boolean {
 }
 
 function isIdentifier(token: string): boolean {
-  const isId = /[a-zA-Z_]\w*/.test(token);
+  const isId = /^[a-zA-Z_][\w.]*$/.test(token); // Allow dotted
   return isId;
 }
 

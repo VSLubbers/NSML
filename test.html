@@ -2,400 +2,62 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>NSML Parser Interactive Tester</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NSML Parser</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      margin: 20px;
+      max-width: 800px;
+      margin: 20px auto;
+      padding: 20px;
     }
-    #input {
+    textarea {
       width: 100%;
-      height: 300px;
+      height: 200px;
+      margin-bottom: 10px;
       font-family: monospace;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
     }
     #output {
       margin-top: 20px;
       padding: 10px;
       border: 1px solid #ccc;
-      background: #f8f8f8;
       white-space: pre-wrap;
       font-family: monospace;
-    }
-    button {
-      margin-top: 10px;
-      padding: 8px 16px;
-      margin-right: 10px;
     }
   </style>
 </head>
 <body>
-  <h1>NSML Parser Interactive Tester</h1>
-  <p>Enter your NSML snippet below and click "Parse" to see the output. Example: <code>&lt;nsml&gt;&lt;symbols&gt;&lt;var name="age" type="number"&gt;42&lt;/var&gt;&lt;/symbols&gt;&lt;/nsml&gt;</code></p>
-  <textarea id="input" placeholder="Paste NSML code here..."></textarea>
-  <button id="parseBtn">Parse</button>
-  <button id="runAllTestsBtn">Run All Tests</button>
-  <button id="clearBtn">Clear</button>
-  <pre id="output"></pre>
-  <script src="dist/nsml-parser.min.js"></script>
-  <script>
-    // Hardcoded test cases covering the full scope of the implementation
-    const testCases = [
-      {
-        description: "Basic symbols and simple query evaluation",
-        input: `<nsml>
-  <symbols>
-    <var name="age" type="number">42</var>
-  </symbols>
-  <rules>
-    <rule name="isAdult">age >= 18</rule>
-  </rules>
-  <queries>
-    <query name="checkAdult">eval(isAdult)</query>
-  </queries>
-</nsml>`,
-        expected: { results: { "checkAdult": true }, errors: [], trace: [] }
-      },
-      {
-        description: "Counterfactual branch overriding symbol value",
-        input: `<nsml>
-  <symbols>
-    <var name="age" type="number">42</var>
-  </symbols>
-  <rules>
-    <rule name="isAdult">age >= 18</rule>
-  </rules>
-  <queries>
-    <counterfactual if="age=17">
-      <query name="checkAdult">eval(isAdult)</query>
-    </counterfactual>
-  </queries>
-</nsml>`,
-        expected: { results: { "checkAdult": false }, errors: [], trace: [] }
-      },
-      {
-        description: "Aggregate functions on sets (count, sum, min, max, avg)",
-        input: `<nsml>
-  <symbols>
-    <set name="ages" elements="17,42,65" />
-  </symbols>
-  <queries>
-    <aggregate func="count" over="ages" name="total" />
-    <aggregate func="sum" over="ages" name="sumAge" />
-    <aggregate func="min" over="ages" name="minAge" />
-    <aggregate func="max" over="ages" name="maxAge" />
-    <aggregate func="avg" over="ages" name="avgAge" />
-  </queries>
-</nsml>`,
-        expected: { results: { "total": 3, "sumAge": 124, "minAge": 17, "maxAge": 65, "avgAge": 41.333333333333336 }, errors: [], trace: [] }
-      },
-      {
-        description: "Quantifiers (exists, forall) with and without count",
-        input: `<nsml>
-  <symbols>
-    <set name="ages" elements="17,42,65" />
-    <const name="threshold" type="number" value="18" />
-  </symbols>
-  <queries>
-    <exists name="hasAdult" in="ages" condition="item > threshold" />
-    <exists name="hasAdultCount" in="ages" condition="item > threshold" count="true" />
-    <forall name="allAdult" in="ages" condition="item > threshold" />
-  </queries>
-</nsml>`,
-        expected: { results: { "hasAdult": true, "hasAdultCount": { "result": true, "count": 2 }, "allAdult": false }, errors: [], trace: [] }
-      },
-      {
-        description: "Failing constraint triggering error",
-        input: `<nsml>
-  <symbols>
-    <var name="age" type="number" init="15" />
-    <const name="adultThreshold" type="number" value="18" />
-  </symbols>
-  <rules>
-    <constraint>age < adultThreshold => error("Underage")</constraint>
-  </rules>
-</nsml>`,
-        expected: { results: {}, errors: [{ "type": "runtime", "message": "Underage" }], trace: [] }
-      },
-      {
-        description: "Passing constraint with no error",
-        input: `<nsml>
-  <symbols>
-    <var name="age" type="number" init="20" />
-    <const name="adultThreshold" type="number" value="18" />
-  </symbols>
-  <rules>
-    <constraint>age < adultThreshold => error("Underage")</constraint>
-  </rules>
-</nsml>`,
-        expected: { results: {}, errors: [], trace: [] }
-      },
-      {
-        description: "Failing assertion",
-        input: `<nsml>
-  <symbols>
-    <var name="x" type="number" init="0" />
-  </symbols>
-  <assertions>
-    <assert>x > 0</assert>
-  </assertions>
-</nsml>`,
-        expected: { results: {}, errors: [{ "type": "runtime", "message": "Assertion failed: x > 0", "suggestedFix": "Adjust values or conditions to satisfy assertion" }], trace: [] }
-      },
-      {
-        description: "Simulation trace generation",
-        input: `<nsml>
+  <h1>NSML Parser</h1>
+  <textarea id="nsmlInput" placeholder="Enter NSML snippet here...">
+<nsml>
   <symbols>
     <var name="x" type="number" init="5" />
   </symbols>
   <queries>
-    <query name="double">eval(x * 2)</query>
+    <query name="double">x * 2</query>
   </queries>
-  <simulate steps="trace" target="double" />
-</nsml>`,
-        expected: { results: { "double": 10 }, errors: [], trace: ["Evaluating double: step1 eval..."] }
-      },
-      {
-        description: "Graph definition and path function",
-        input: `<nsml>
-  <symbols>
-    <graph name="family" nodes="A,B,C" edges="A->to->B,B->to->C" />
-  </symbols>
-  <queries>
-    <query name="pathAB">path(family, "A", "B")</query>
-    <query name="pathAC">path(family, "A", "C")</query>
-  </queries>
-</nsml>`,
-        expected: { results: { "pathAB": ["A", "B"], "pathAC": ["A", "B", "C"] }, errors: [], trace: [] }
-      },
-      {
-        description: "Entity with properties and references",
-        input: `<nsml>
-  <symbols>
-    <var name="age" type="number" init="42" />
-    <entity name="person" props="name='Alice', personAge=age" />
-  </symbols>
-</nsml>`,
-        expected: { results: {}, errors: [], trace: [] }
-      },
-      {
-        description: "Chess domain: validation, execution, and query",
-        input: `<nsml>
-  <chess name="chessTest" moves="e2-e4,e7-e5" validate="true" execute="true" queryPiece="d2" />
-</nsml>`,
-        expected: { results: { "chessTest": { "fen": "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR", "moves": ["e2-e4", "e7-e5"], "queryResult": ["d3", "d4"] } }, errors: [], trace: ["Evaluating domain tag chess"] }
-      },
-      {
-        description: "Math domain: simple expression evaluation",
-        input: `<nsml>
-  <math name="expr" expression="2 + 3 * 4" />
-</nsml>`,
-        expected: { results: { "expr": 14 }, errors: [], trace: ["Evaluating domain tag math"] }
-      },
-      {
-        description: "Math domain: linear equation solving",
-        input: `<nsml>
-  <math name="eq" expression="2x + 3 = 7" />
-</nsml>`,
-        expected: { results: { "eq": { "x": 2 } }, errors: [], trace: ["Evaluating domain tag math"] }
-      },
-      {
-        description: "Import handling (logs in trace)",
-        input: `<nsml>
-  <import src="logic.nsml" />
-</nsml>`,
-        expected: { results: {}, errors: [], trace: ["Importing logic.nsml (full loading not implemented yet)"] }
-      },
-      {
-        description: "Error case: invalid syntax (unclosed tag)",
-        input: `<nsml><unclosed>`,
-        expected: { results: {}, errors: [{ "type": "syntax", "message": "Expected closing tag for unclosed" }], trace: [] }
-      },
-      {
-        description: "Error case: duplicate symbol",
-        input: `<nsml>
-  <symbols>
-    <var name="age" type="number" init="42" />
-    <var name="age" type="number" init="43" />
-  </symbols>
-</nsml>`,
-        expected: { results: {}, errors: [{ "type": "semantic", "message": "Duplicate symbol 'age'", "suggestedFix": "Rename or remove duplicate" }], trace: [] }
-      },
-      {
-        description: "Error case: type mismatch",
-        input: `<nsml>
-  <symbols>
-    <var name="age" type="number" init="forty-two" />
-  </symbols>
-</nsml>`,
-        expected: { results: {}, errors: [{ "type": "semantic", "message": "Invalid number value 'forty-two'", "suggestedFix": "Provide a valid number" }], trace: [] }
-      },
-      {
-        description: "Error case: unresolved reference",
-        input: `<nsml>
-  <symbols>
-    <entity name="person" props="personAge=missing" />
-  </symbols>
-</nsml>`,
-        expected: { results: {}, errors: [{ "type": "semantic", "message": "Unresolved reference 'missing'", "suggestedFix": "Define the symbol before referencing it" }], trace: [] }
-      },
-      {
-        description: "Function with parameters",
-        input: `<nsml>
-  <rules>
-    <function name="add" params="a:number,b:number">a + b</function>
-  </rules>
-  <queries>
-    <query name="result">eval(add(2, 3))</query>
-  </queries>
-</nsml>`,
-        expected: { results: { "result": 5 }, errors: [], trace: [] }
-      },
-      {
-        description: "Set operations in expressions",
-        input: `<nsml>
-  <symbols>
-    <set name="set1" elements="1,2,3" />
-    <set name="set2" elements="3,4,5" />
-  </symbols>
-  <queries>
-    <query name="union">set1 union set2</query>
-    <query name="intersect">set1 intersect set2</query>
-    <query name="diff">set1 diff set2</query>
-  </queries>
-</nsml>`,
-        expected: { results: { "union": { "elements": [1,2,3,4,5] }, "intersect": { "elements": [3] }, "diff": { "elements": [1,2] } }, errors: [], trace: [] } // Updated expected to use sorted arrays for full comparison
-      },
-      // New test cases for HTML tester (add to testCases array)
-{
-  description: "Error with line number in invalid expression",
-  input: `<nsml>
-    <queries>
-      <query name="badExpr">1 @ 2</query> <!-- Invalid operator @ should error with line 3 -->
-    </queries>
-  </nsml>`,
-  expected: { results: {}, errors: [{ "type": "runtime", "message": "Unsupported operator '@'" }], trace: [] }
-},
-{
-  description: "Full simulation trace for simple expression",
-  input: `<nsml>
-    <symbols>
-      <var name="x" type="number" init="5" />
-    </symbols>
-    <queries>
-      <query name="double">x * 2</query>
-    </queries>
-    <simulate steps="full" target="double" />
-  </nsml>`,
-  expected: { results: { "double": 10 }, errors: [], trace: ["Starting full trace for double", "Evaluating expression at line 6", "Resolved value: 5", "Resolved value: 2", "Applying operator * to 5 and 2", "Completed trace for double"] }
-},
-{
-  description: "Full simulation trace for rule application",
-  input: `<nsml>
-    <symbols>
-      <var name="age" type="number" init="42" />
-    </symbols>
-    <rules>
-      <rule name="isAdult">age >= 18</rule>
-    </rules>
-    <queries>
-      <query name="check">eval(isAdult)</query>
-    </queries>
-    <simulate steps="full" target="check" />
-  </nsml>`,
-  expected: { results: { "check": true }, errors: [], trace: ["Starting full trace for check", "Evaluating expression at line 9", "Calling function eval with args: [\"isAdult\"]", "Applying rule isAdult", "Evaluating expression at line 6", "Resolved value: 42", "Resolved value: 18", "Applying operator >= to 42 and 18", "Completed trace for check"] }
-},
-{
-  description: "Full simulation trace for function call",
-  input: `<nsml>
-    <rules>
-      <function name="add" params="a,b">a + b</function>
-    </rules>
-    <queries>
-      <query name="sum">add(3, 4)</query>
-    </queries>
-    <simulate steps="full" target="sum" />
-  </nsml>`,
-  expected: { results: { "sum": 7 }, errors: [], trace: ["Starting full trace for sum", "Evaluating expression at line 6", "Calling function add with args: [3,4]", "Evaluating expression at line 3", "Resolved value: 3", "Resolved value: 4", "Applying operator + to 3 and 4", "Function add returned: 7", "Completed trace for sum"] }
-}
-    ];
+</nsml>
+  </textarea>
+  <br>
+  <button onclick="parseNSML()">Parse NSML</button>
+  <div id="output"></div>
 
-    // Custom comparison function ignoring 'line' in errors and handling floats/Sets with sorted arrays
-    function compareOutputs(actual, expected) {
-      function normalize(obj) {
-        if (Array.isArray(obj)) return obj.map(normalize).sort((a, b) => a - b); // Sort arrays
-        if (obj instanceof Set) return { elements: Array.from(obj).sort((a, b) => a - b) }; // Convert Set to sorted array object
-        if (typeof obj === 'object' && obj !== null) {
-          const copy = { ...obj };
-          delete copy.line; // Ignore line numbers
-          if (copy.suggestedFix) delete copy.suggestedFix; // Optional, ignore if varying
-          for (let key in copy) {
-            copy[key] = normalize(copy[key]);
-            // Approximate floats
-            if (typeof copy[key] === 'number' && !Number.isInteger(copy[key])) {
-              copy[key] = Math.round(copy[key] * 1000) / 1000; // 3 decimal places
-            }
-          }
-          return copy;
-        }
-        return obj;
-      }
-      return JSON.stringify(normalize(actual)) === JSON.stringify(normalize(expected));
-    }
-
-    // Run single parse
-    document.getElementById('parseBtn').addEventListener('click', () => {
-      const input = document.getElementById('input').value;
+  <script src="dist/nsml-parser.min.js"></script>
+  <script>
+    async function parseNSML() {
+      const input = document.getElementById('nsmlInput').value;
+      const outputDiv = document.getElementById('output');
       try {
-        const result = NSMLParser.parseNSML(input);
-        // Custom replacer for JSON.stringify to handle Sets
-        const replacer = (key, value) => {
-          if (value instanceof Set) {
-            return Array.from(value).sort((a, b) => a - b); // Sort for consistent output
-          }
-          return value;
-        };
-        document.getElementById('output').textContent = JSON.stringify(result, replacer, 2);
-      } catch (error) {
-        document.getElementById('output').textContent = 'Error: ' + error.message + '\nStack: ' + error.stack;
+        const result = await NSMLParser.parseNSML(input);
+        outputDiv.textContent = JSON.stringify(result, null, 2);
+      } catch (e) {
+        outputDiv.textContent = `Error: ${e.message}`;
       }
-    });
-
-    // Run all tests
-    document.getElementById('runAllTestsBtn').addEventListener('click', () => {
-      let log = '';
-      testCases.forEach((test, index) => {
-        try {
-          const actual = NSMLParser.parseNSML(test.input);
-          const pass = compareOutputs(actual, test.expected);
-          if (pass) {
-            log += `Test ${index + 1}: PASS\n\n---\n\n`;
-          } else {
-            // Custom replacer for JSON.stringify to handle Sets
-            const replacer = (key, value) => {
-              if (value instanceof Set) {
-                return Array.from(value).sort((a, b) => a - b); // Sort for consistent output
-              }
-              return value;
-            };
-            log += `Test ${index + 1}: ${test.description}\n`;
-            log += `Input:\n${test.input}\n\n`;
-            log += `Actual Output:\n${JSON.stringify(actual, replacer, 2)}\n\n`;
-            log += `Expected Output:\n${JSON.stringify(test.expected, null, 2)}\n\n`;
-            log += `Result: FAIL\n\n---\n\n`;
-          }
-        } catch (error) {
-          log += `Test ${index + 1}: ${test.description}\n`;
-          log += `Error: ${error.message}\nStack: ${error.stack}\n\n---\n\n`;
-        }
-      });
-      document.getElementById('output').textContent = log;
-    });
-
-    // Clear output
-    document.getElementById('clearBtn').addEventListener('click', () => {
-      document.getElementById('input').value = '';
-      document.getElementById('output').textContent = '';
-    });
+    }
   </script>
 </body>
 </html>

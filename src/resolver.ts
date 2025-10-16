@@ -1,3 +1,4 @@
+// src/resolver.ts
 import {
   AstNode,
   SymbolTable,
@@ -13,7 +14,10 @@ interface ResolveResult {
   errors: EvalError[];
 }
 
-export function resolve(ast: AstNode | null): ResolveResult {
+export function resolve(
+  ast: AstNode | null,
+  namespace: string = ''
+): ResolveResult {
   const symbols: SymbolTable = new Map();
   const errors: EvalError[] = [];
 
@@ -44,8 +48,8 @@ export function resolve(ast: AstNode | null): ResolveResult {
     symbols: SymbolTable,
     errors: EvalError[]
   ) {
-    const name = node.attributes.name;
-    if (!name) {
+    const origName = node.attributes.name;
+    if (!origName) {
       errors.push({
         type: 'semantic',
         message: 'Missing name attribute',
@@ -54,6 +58,8 @@ export function resolve(ast: AstNode | null): ResolveResult {
       });
       return;
     }
+    const name = namespace ? `${namespace}.${origName}` : origName;
+
     if (symbols.has(name)) {
       errors.push({
         type: 'semantic',
@@ -130,24 +136,34 @@ export function resolve(ast: AstNode | null): ResolveResult {
           ?.split(',')
           .forEach((n) => graph.nodes.add(n.trim()));
         node.attributes.edges?.split(',').forEach((e) => {
-          const [from, rel, to] = e.split('->').map((s) => s.trim());
-          if (!graph.edges.has(from)) graph.edges.set(from, new Map());
-          graph.edges.get(from)!.set(rel, to);
+          const parts = e.split('->');
+          if (parts.length < 2 || parts.length > 3) {
+            errors.push({
+              type: 'semantic',
+              message: `Invalid edge format '${e}' in graph '${name}'`,
+              line: node.line,
+              suggestedFix: 'Use from->to or from->relation->to',
+            });
+            return;
+          }
+          const from = parts[0].trim();
+          const relation = parts.length === 3 ? parts[1].trim() : 'to';
+          const to = parts[parts.length - 1].trim();
+          if (!graph.edges.has(from)) {
+            graph.edges.set(from, new Map());
+          }
+          graph.edges.get(from)!.set(relation, to);
         });
         entry = { kind: 'graph', type: 'graph', value: graph, mutable: true };
         break;
       case 'entity':
         const props: Record<string, any> = {};
         node.attributes.props?.split(',').forEach((p) => {
-          p = p.trim();
-          if (!p) return; // Skip empty
-          const splitParts = p.split('=');
-          const key = splitParts[0].trim();
-          const val = splitParts[1]?.trim(); // ? for undefined
-          if (!key || val === undefined) {
+          const [key, val] = p.split('=').map((s) => s.trim());
+          if (!key || !val) {
             errors.push({
               type: 'semantic',
-              message: `Invalid prop '${p}' for '${name}'`,
+              message: `Invalid prop '${p}' in entity '${name}'`,
               line: node.line,
               suggestedFix: 'Use format key=value',
             });
@@ -264,5 +280,5 @@ export function parseValue(
 }
 
 function isIdentifier(token: string): boolean {
-  return /^[a-zA-Z_]\w*$/.test(token);
+  return /^[a-zA-Z_][\w.]*$/.test(token); // Allow dotted
 }

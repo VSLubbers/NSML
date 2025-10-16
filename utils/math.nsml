@@ -1,0 +1,63 @@
+<nsml version="1.0">
+  <!-- Math Utilities: Constants, Functions, and Rules for Arithmetic and Basic Algebra -->
+  <symbols>
+    <!-- Fundamental Constants -->
+    <const name="PI" type="number" value="3.141592653589793" />
+    <const name="E" type="number" value="2.718281828459045" />
+    <const name="GOLDEN_RATIO" type="number" value="1.618033988749895" />
+    <const name="SQRT_2" type="number" value="1.4142135623730951" />
+
+    <!-- Sets for Common Numbers -->
+    <set name="primesUnder20" elements="2,3,5,7,11,13,17,19" />
+    <set name="fibonacciUnder100" elements="0,1,1,2,3,5,8,13,21,34,55,89" />
+
+    <!-- Graph for Number Relations (e.g., factors) -->
+    <graph name="factorGraph" nodes="2,3,4,5,6,8,9,10" edges="4->factorOf->2,6->factorOf->2,6->factorOf->3,8->factorOf->2,9->factorOf->3,10->factorOf->2,10->factorOf->5" />
+  </symbols>
+
+  <rules>
+    <!-- Basic Arithmetic Functions -->
+    <function name="add" params="a:number,b:number" return="number">a + b</function>
+    <function name="subtract" params="a:number,b:number" return="number">a - b</function>
+    <function name="multiply" params="a:number,b:number" return="number">a * b</function>
+    <function name="divide" params="a:number,b:number" return="number">a / b</function>
+    <function name="modulo" params="a:number,b:number" return="number">a % b</function>
+    <function name="power" params="base:number,exp:number" return="number">base ^ exp</function>
+
+    <!-- Advanced Math Functions -->
+    <function name="sqrt" params="x:number" return="number">x ^ 0.5</function>
+    <function name="factorial" params="n:number" return="number">n <= 1 => 1 || n * factorial(n - 1)</function>
+    <function name="isPrime" params="n:number" return="boolean">forall in="2..(sqrt(n)-1)" condition="n % item == 0" => false || true</function>
+
+    <!-- Set Operations -->
+    <rule name="unionSets">setA union setB</rule>
+    <rule name="intersectSets">setA intersect setB</rule>
+    <rule name="diffSets">setA diff setB</rule>
+
+    <!-- Graph Queries -->
+    <rule name="findPath">path(graph, start, end)</rule>
+
+    <!-- Constraints for Validation -->
+    <constraint>n < 0 => error("Negative value not allowed in factorial")</constraint>
+    <constraint>b == 0 => error("Division by zero")</constraint>
+  </rules>
+
+  <queries>
+    <!-- Example Queries (can be executed if imported with scope="full") -->
+    <query name="circleArea" expression="PI * r^2" chain="multiply => aggregate(func='sum')" />
+    <exists in="primesUnder20" condition="item > 10" count="true" name="largePrimes" />
+    <aggregate func="sum" over="fibonacciUnder100" name="fibSum" />
+    <query name="factorPath">eval(findPath(factorGraph, '10', '2'))</query>
+  </queries>
+
+  <assertions>
+    <assert>PI > 3</assert>
+    <assert>E < 3</assert>
+  </assertions>
+
+  <!-- Domain Hooks for Math -->
+  <math name="solveLinear" expression="2x + 5 = 11" />
+  <math name="evalExpr" expression="3 * (4 + 2)" />
+
+  <simulate steps="full" target="solveLinear" />
+</nsml>
