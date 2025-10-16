@@ -264,7 +264,59 @@
   </queries>
 </nsml>`,
         expected: { results: { "union": { "elements": [1,2,3,4,5] }, "intersect": { "elements": [3] }, "diff": { "elements": [1,2] } }, errors: [], trace: [] } // Updated expected to use sorted arrays for full comparison
-      }
+      },
+      // New test cases for HTML tester (add to testCases array)
+{
+  description: "Error with line number in invalid expression",
+  input: `<nsml>
+    <queries>
+      <query name="badExpr">1 @ 2</query> <!-- Invalid operator @ should error with line 3 -->
+    </queries>
+  </nsml>`,
+  expected: { results: {}, errors: [{ "type": "runtime", "message": "Unsupported operator '@'" }], trace: [] }
+},
+{
+  description: "Full simulation trace for simple expression",
+  input: `<nsml>
+    <symbols>
+      <var name="x" type="number" init="5" />
+    </symbols>
+    <queries>
+      <query name="double">x * 2</query>
+    </queries>
+    <simulate steps="full" target="double" />
+  </nsml>`,
+  expected: { results: { "double": 10 }, errors: [], trace: ["Starting full trace for double", "Evaluating expression at line 6", "Resolved value: 5", "Resolved value: 2", "Applying operator * to 5 and 2", "Completed trace for double"] }
+},
+{
+  description: "Full simulation trace for rule application",
+  input: `<nsml>
+    <symbols>
+      <var name="age" type="number" init="42" />
+    </symbols>
+    <rules>
+      <rule name="isAdult">age >= 18</rule>
+    </rules>
+    <queries>
+      <query name="check">eval(isAdult)</query>
+    </queries>
+    <simulate steps="full" target="check" />
+  </nsml>`,
+  expected: { results: { "check": true }, errors: [], trace: ["Starting full trace for check", "Evaluating expression at line 9", "Calling function eval with args: [\"isAdult\"]", "Applying rule isAdult", "Evaluating expression at line 6", "Resolved value: 42", "Resolved value: 18", "Applying operator >= to 42 and 18", "Completed trace for check"] }
+},
+{
+  description: "Full simulation trace for function call",
+  input: `<nsml>
+    <rules>
+      <function name="add" params="a,b">a + b</function>
+    </rules>
+    <queries>
+      <query name="sum">add(3, 4)</query>
+    </queries>
+    <simulate steps="full" target="sum" />
+  </nsml>`,
+  expected: { results: { "sum": 7 }, errors: [], trace: ["Starting full trace for sum", "Evaluating expression at line 6", "Calling function add with args: [3,4]", "Evaluating expression at line 3", "Resolved value: 3", "Resolved value: 4", "Applying operator + to 3 and 4", "Function add returned: 7", "Completed trace for sum"] }
+}
     ];
 
     // Custom comparison function ignoring 'line' in errors and handling floats/Sets with sorted arrays

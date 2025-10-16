@@ -45,7 +45,18 @@ export function compileRules(
   ) {
     const name = node.attributes.name || `anonymous${anonymousCount++}`;
     const exprStr = node.text || node.attributes.body || '';
-    const tree = parseExpression(exprStr, node.line); // Pass line to parseExpression
+    let tree;
+    try {
+      tree = parseExpression(exprStr, node.line); // Pass line to parseExpression
+    } catch (e: any) {
+      errors.push({
+        type: 'syntax',
+        message: e.message,
+        line: node.line,
+        suggestedFix: 'Verify operators and parentheses in expression',
+      });
+      return;
+    }
     if (!tree) {
       errors.push({
         type: 'syntax',
@@ -65,6 +76,8 @@ export function compileRules(
       .filter((p) => p);
 
     const func = (...args: any[]) => {
+      const trace = args[params.length] as string[] | undefined;
+      const tracing = args[params.length + 1] as boolean | undefined;
       const paramContext = Object.fromEntries(
         params.map((p, i) => [p, args[i]])
       );
@@ -76,7 +89,9 @@ export function compileRules(
         tree,
         { ...symbolValues, ...paramContext },
         errors,
-        node.line
+        node.line,
+        trace ?? [],
+        tracing ?? false
       );
     };
 
@@ -90,7 +105,6 @@ export function compileRules(
 export function parseExpression(expr: string, line?: number): ExprNode | null { // Added line param
   expr = expr.replace(/(\d)([a-zA-Z_])/g, '$1*$2');
   const tokens = tokenizeExpr(expr);
-
   let pos = 0;
 
   function peek(): string | undefined {
@@ -134,6 +148,7 @@ export function parseExpression(expr: string, line?: number): ExprNode | null { 
           if (peek() === ',') consume();
         }
         if (peek() === ')') consume();
+        else return null; // Unmatched )
         return { func: token, args, line };
       }
       return { value: token, line };
@@ -231,8 +246,40 @@ export function parseExpression(expr: string, line?: number): ExprNode | null { 
 }
 
 function tokenizeExpr(expr: string): string[] {
-  const tokens =
-    expr.match(/("[^"]"|'[^']'|\d+|[a-zA-Z_]\w*|[&|!=><+*/%^(),-]+)/g) || [];
+  const tokens = [];
+  let pos = 0;
+  while (pos < expr.length) {
+    const char = expr[pos];
+    if (/\s/.test(char)) { pos++; continue; } // Skip space
+    if (char === '"' || char === "'") {
+      const end = expr.indexOf(char, pos + 1);
+      if (end === -1) throw new Error('Unclosed string');
+      tokens.push(expr.slice(pos, end + 1));
+      pos = end + 1;
+      continue;
+    }
+    if (/\d/.test(char)) {
+      let num = '';
+      while (pos < expr.length && /\d/.test(expr[pos])) num += expr[pos++];
+      tokens.push(num);
+      continue;
+    }
+    if (/[a-zA-Z_]/.test(char)) {
+      let id = '';
+      while (pos < expr.length && /[a-zA-Z_\w]/.test(expr[pos])) id += expr[pos++];
+      tokens.push(id);
+      continue;
+    }
+    // Three-char ops
+    const three = expr.slice(pos, pos + 3);
+    if (three === '<=>') { tokens.push(three); pos += 3; continue; }
+    // Two-char ops
+    const two = expr.slice(pos, pos + 2);
+    if (['&&', '||', '!=', '>=', '<=', '==', '=>'].includes(two)) { tokens.push(two); pos += 2; continue; }
+    // Single char ops/symbols
+    if (['!', '+', '-', '*', '/', '%', '^', '>', '<', '(', ')', ','].includes(char)) { tokens.push(char); pos++; continue; }
+    throw new Error(`Unsupported operator or token '${char}'`);
+  }
   return tokens;
 }
 
@@ -257,15 +304,21 @@ export function evalExpr(
   tree: ExprNode,
   context: any,
   errors: EvalError[],
-  line: number
+  line: number,
+  trace: string[] = [], // Added trace param
+  tracing = false // Added tracing flag
 ): any {
+  if (tracing && tree.op) trace.push(`Applying operator ${tree.op} at line ${line}`);
+  if (tracing && tree.func) trace.push(`Calling function ${tree.func} at line ${line}`);
   if (tree.value !== undefined) {
     const value = context[tree.value] || tree.value;
+    if (tracing) trace.push(`Resolved value: ${value}`);
     return value;
   }
   if (tree.func) {
     const args =
-      tree.args?.map((a) => evalExpr(a, context, errors, line)) || [];
+      tree.args?.map((a) => evalExpr(a, context, errors, line, trace, tracing)) || [];
+    if (tracing) trace.push(`Calling function ${tree.func} with args: ${JSON.stringify(args)}`);
     if (tree.func === 'error') {
       return { type: 'error', message: args[0] };
     }
@@ -343,48 +396,48 @@ export function evalExpr(
   // Short-circuit for logical ops
   if (tree.op === '&&') {
     const left = tree.left
-      ? evalExpr(tree.left, context, errors, line)
+      ? evalExpr(tree.left, context, errors, line, trace, tracing)
       : undefined;
     if (!left) return left;
     const right = tree.right
-      ? evalExpr(tree.right, context, errors, line)
+      ? evalExpr(tree.right, context, errors, line, trace, tracing)
       : undefined;
     return right;
   }
   if (tree.op === '||') {
     const left = tree.left
-      ? evalExpr(tree.left, context, errors, line)
+      ? evalExpr(tree.left, context, errors, line, trace, tracing)
       : undefined;
     if (left) return left;
     const right = tree.right
-      ? evalExpr(tree.right, context, errors, line)
+      ? evalExpr(tree.right, context, errors, line, trace, tracing)
       : undefined;
     return right;
   }
   if (tree.op === '=>') {
     const left = tree.left
-      ? evalExpr(tree.left, context, errors, line)
+      ? evalExpr(tree.left, context, errors, line, trace, tracing)
       : undefined;
     if (!left) return true;
     const right = tree.right
-      ? evalExpr(tree.right, context, errors, line)
+      ? evalExpr(tree.right, context, errors, line, trace, tracing)
       : undefined;
     return right;
   }
   if (tree.op === '<=>') {
     const left = tree.left
-      ? evalExpr(tree.left, context, errors, line)
+      ? evalExpr(tree.left, context, errors, line, trace, tracing)
       : undefined;
     const right = tree.right
-      ? evalExpr(tree.right, context, errors, line)
+      ? evalExpr(tree.right, context, errors, line, trace, tracing)
       : undefined;
     return !!left === !!right;
   }
   const leftVal = tree.left
-    ? evalExpr(tree.left, context, errors, line)
+    ? evalExpr(tree.left, context, errors, line, trace, tracing)
     : undefined;
   const rightVal = tree.right
-    ? evalExpr(tree.right, context, errors, line)
+    ? evalExpr(tree.right, context, errors, line, trace, tracing)
     : undefined;
   switch (tree.op) {
     case '+':

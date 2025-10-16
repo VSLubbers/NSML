@@ -1,4 +1,4 @@
-// src/evaluator.ts - Updated with fixes for core reasoning
+// src/evaluator.ts - Updated with enhanced traces for <simulate>
 import {
   AstNode,
   SymbolTable,
@@ -7,7 +7,7 @@ import {
   ExprNode,
   SymbolEntry,
 } from './types';
-import { parseExpression, compileRules } from './compiler';
+import { parseExpression, compileRules, evalExpr } from './compiler'; // Updated import for evalExpr
 import { parseValue } from './resolver';
 import { domainRegistry } from './domains';
 
@@ -31,6 +31,8 @@ export function evaluate(
   const results: Record<string, any> = {};
   const errors: EvalError[] = [];
   const trace: string[] = [];
+  const tracingTargets = new Set<string>(); // Track targets for tracing during initial eval
+  const simulateTraces: Record<string, string[]> = {}; // Per-target traces for order control
 
   if (!ast) {
     errors.push({
@@ -42,9 +44,10 @@ export function evaluate(
   }
 
   // Create value context from symbols
-  const valueContext: Record<string, any> = deepClone(Object.fromEntries(
-    Array.from(symbols, ([k, v]) => [k, v.value])
-  ));
+  const valueContext: Record<string, any> = {};
+  for (const [k, v] of symbols) {
+    valueContext[k] = deepClone(v.value);
+  }
 
   // Get expression trees from compiler
   const { exprTrees } = compileRules(ast, symbols);
@@ -87,24 +90,35 @@ export function evaluate(
     }
   }
 
-  // Evaluate expression tree (updated for better func handling)
-  function evalTree(tree: ExprNode, context: Record<string, any>): any {
+  // Evaluate expression tree (updated for better func handling and tracing)
+  function evalTree(tree: ExprNode | null, context: Record<string, any>, targetTrace: string[] = trace, tracing = false): any {
+    if (!tree || typeof tree !== 'object') {
+      errors.push({
+        type: 'runtime',
+        message: 'Invalid expression tree for evaluation',
+        line: tree && 'line' in tree ? (tree as any).line ?? 0 : 0,
+      });
+      return null;
+    }
+    if (tracing && (tree.op || tree.func)) targetTrace.push(`Evaluating expression at line ${tree.line || 'unknown'}`);
     if (tree.value !== undefined) {
       const val =
         context[tree.value as string] !== undefined
           ? context[tree.value as string]
           : tree.value;
+      if (tracing && typeof val !== 'string') targetTrace.push(`Resolved value: ${val}`);
       return val;
     }
     if (tree.func) {
-      const args = tree.args?.map((a: ExprNode) => evalTree(a, context)) || [];
+      const args = tree.args?.map((a: ExprNode) => evalTree(a, context, targetTrace, tracing)) || [];
+      if (tracing) targetTrace.push(`Calling function ${tree.func} with args: ${JSON.stringify(args)}`);
       if (tree.func === 'error') return { type: 'error', message: args[0] };
       if (tree.func === 'path') {
         if (args.length !== 3) {
           errors.push({
             type: 'runtime',
             message: 'path function requires 3 arguments (graph, start, end)',
-            line: tree.line || 0, // Assume line added to ExprNode if needed
+            line: tree.line || 0, // Use tree.line
             suggestedFix: 'Provide graph, start node, and end node',
           });
           return null;
@@ -179,7 +193,10 @@ export function evaluate(
         const arg = args[0];
         if (typeof arg === 'string') {
           const ruleTree = exprTrees.get(arg);
-          if (ruleTree) return evalTree(ruleTree, context);
+          if (ruleTree) {
+            if (tracing) targetTrace.push(`Applying rule ${arg}`);
+            return evalTree(ruleTree, context, targetTrace, tracing);
+          }
           errors.push({
             type: 'runtime',
             message: `Unknown rule '${arg}'`,
@@ -187,14 +204,16 @@ export function evaluate(
           });
           return null;
         } else {
-          // Direct expression evaluation
-          return arg; // Since arg is already evalTree'd
+          // Direct value from inner expression - return as-is
+          return arg;
         }
       }
       // General user-defined function call
       const func = rules.get(tree.func);
       if (func) {
-        return func(...args);
+        const result = func(...args, targetTrace, tracing);
+        if (tracing) targetTrace.push(`Function ${tree.func} returned: ${result}`);
+        return result;
       }
       errors.push({
         type: 'runtime',
@@ -204,8 +223,9 @@ export function evaluate(
       });
       return null;
     }
-    const left = tree.left ? evalTree(tree.left, context) : undefined;
-    const right = tree.right ? evalTree(tree.right, context) : undefined;
+    const left = tree.left ? evalTree(tree.left, context, targetTrace, tracing) : undefined;
+    const right = tree.right ? evalTree(tree.right, context, targetTrace, tracing) : undefined;
+    if (tracing) targetTrace.push(`Applying operator ${tree.op} to ${left} and ${right}`);
     switch (tree.op) {
       case '+':
         return Number(left) + Number(right);
@@ -262,18 +282,56 @@ export function evaluate(
     }
   }
 
-  // Process queries recursively
-  function processQuery(node: AstNode, context: Record<string, any>) {
+  // Process queries recursively (updated for chain support)
+  function processQuery(node: AstNode, context: Record<string, any>, targetTrace: string[] = trace, tracing = false) {
     if (node.type === 'counterfactual' || node.type === 'branch') {
       processBranch(node, context);
       return;
     }
     const name = node.attributes.name || 'anonymous';
-    const expr = node.text || ''; // Removed attributes.eval, assume text is expression
-    if (expr) {
-      const tree = parseExpression(expr);
+    let expr = node.text || ''; // Removed attributes.eval, assume text is expression
+    let currentValue;
+    if (node.attributes.chain) {
+      const chain = node.attributes.chain.split(' => ').map(s => s.trim());
+      const target = context[node.attributes.target];
+      if (target === undefined) {
+        errors.push({
+          type: 'semantic',
+          message: `Missing target for chained query '${name}'`,
+          line: node.line,
+        });
+        return;
+      }
+      currentValue = target;
+      for (const step of chain) {
+        const ruleTree = exprTrees.get(step);
+        if (ruleTree) {
+          if (tracing) targetTrace.push(`Applying ${step} to ${currentValue}`);
+          currentValue = evalTree(ruleTree, { ...context, item: currentValue }, targetTrace, tracing); // Use 'item' for chained input
+        } else {
+          errors.push({
+            type: 'runtime',
+            message: `Unknown step '${step}' in chain for '${name}'`,
+            line: node.line,
+          });
+          return;
+        }
+      }
+    } else if (expr) {
+      let tree;
+      try {
+        tree = parseExpression(expr, node.line);
+      } catch (e: any) {
+        errors.push({
+          type: 'syntax',
+          message: e.message,
+          line: node.line,
+          suggestedFix: 'Check for supported operators or syntax errors in the expression',
+        });
+        return;
+      }
       if (tree) {
-        results[name] = evalTree(tree, context);
+        currentValue = evalTree(tree, context, targetTrace, tracing);
       } else {
         errors.push({
           type: 'runtime',
@@ -281,8 +339,10 @@ export function evaluate(
           line: node.line,
           suggestedFix: 'Check syntax of expression',
         });
+        return;
       }
     }
+    if (currentValue !== undefined) results[name] = currentValue;
     if (node.type === 'aggregate') {
       const func = node.attributes.func;
       const over = context[node.attributes.over];
@@ -298,7 +358,7 @@ export function evaluate(
           });
           return;
         }
-        let aggResult: number | { count: number } | undefined;
+        let aggResult: number | undefined;
         switch (func) {
           case 'count':
             aggResult = vals.length;
@@ -344,7 +404,18 @@ export function evaluate(
         });
         return;
       }
-      const tree = parseExpression(conditionExpr);
+      let tree;
+      try {
+        tree = parseExpression(conditionExpr, node.line);
+      } catch (e: any) {
+        errors.push({
+          type: 'syntax',
+          message: e.message,
+          line: node.line,
+          suggestedFix: 'Check for supported operators or syntax errors in the expression',
+        });
+        return;
+      }
       if (!tree) {
         errors.push({
           type: 'runtime',
@@ -365,7 +436,7 @@ export function evaluate(
       let matches = 0;
       for (const item of items) {
         const itemContext = { ...context, item }; // Assume condition uses 'item' var
-        if (evalTree(tree, itemContext)) matches++;
+        if (evalTree(tree, itemContext, targetTrace, tracing)) matches++;
       }
       let resultBool: boolean;
       if (node.type === 'exists') {
@@ -378,13 +449,24 @@ export function evaluate(
         ? { result: resultBool, count: matches }
         : resultBool;
     }
-    node.children.forEach((child) => processQuery(child, context));
+    node.children.forEach((child) => processQuery(child, context, targetTrace, tracing));
   }
 
   // Process assertions
   function processAssertion(node: AstNode, context: Record<string, any>) {
     const expr = node.text || '';
-    const tree = parseExpression(expr);
+    let tree;
+    try {
+      tree = parseExpression(expr, node.line);
+    } catch (e: any) {
+      errors.push({
+        type: 'syntax',
+        message: e.message,
+        line: node.line,
+        suggestedFix: 'Check for supported operators or syntax errors in the expression',
+      });
+      return;
+    }
     if (tree) {
       if (!evalTree(tree, context)) {
         errors.push({
@@ -407,7 +489,18 @@ export function evaluate(
   // Process constraints
   function processConstraint(node: AstNode, context: Record<string, any>) {
     const expr = node.text || '';
-    const tree = parseExpression(expr);
+    let tree;
+    try {
+      tree = parseExpression(expr, node.line);
+    } catch (e: any) {
+      errors.push({
+        type: 'syntax',
+        message: e.message,
+        line: node.line,
+        suggestedFix: 'Check for supported operators or syntax errors in the expression',
+      });
+      return;
+    }
     if (tree) {
       const evalResult = evalTree(tree, context);
       if (evalResult && evalResult.type === 'error') {
@@ -453,10 +546,29 @@ export function evaluate(
     }
   }
 
-  // Simulate trace
+  // Pre-scan for simulate to collect tracing targets and initialize traces
+  function preScanForTraces(n: AstNode) {
+    if (n.type === 'simulate' && n.attributes.steps === 'full') {
+      const target = n.attributes.target;
+      tracingTargets.add(target);
+      simulateTraces[target] = []; // Init per-target trace
+      simulateTraces[target].push(`Starting full trace for ${target}`);
+    }
+    n.children.forEach(preScanForTraces);
+  }
+  preScanForTraces(ast);
+
+  // Simulate trace (append completion after eval)
   function processSimulate(node: AstNode) {
     const target = node.attributes.target;
-    trace.push(`Evaluating ${target}: step1 eval...`);
+    const steps = node.attributes.steps || 'trace';
+    if (steps === 'full') {
+      if (simulateTraces[target]) {
+        simulateTraces[target].push(`Completed trace for ${target}`);
+      }
+    } else {
+      trace.push(`Evaluating ${target}: step1 eval...`);
+    }
   }
 
   // Traverse AST
@@ -464,7 +576,12 @@ export function evaluate(
     if (node.type === 'import') handleImport(node);
     if (domainRegistry.has(node.type)) handleDomain(node, symbols); // Handle domain tags
     if (node.type === 'queries')
-      node.children.forEach((child) => processQuery(child, context));
+      node.children.forEach((child) => {
+        const name = child.attributes.name;
+        const tracing = tracingTargets.has(name);
+        const targetTrace = simulateTraces[name] || trace;
+        processQuery(child, context, targetTrace, tracing);
+      });
     if (node.type === 'assertions')
       node.children.forEach((child) => processAssertion(child, context));
     if (node.type === 'counterfactual' || node.type === 'branch')
@@ -477,6 +594,11 @@ export function evaluate(
   processAllConstraints(ast, valueContext);
 
   traverse(ast, valueContext);
+
+  // Merge all simulate traces into main trace
+  for (const t of Object.values(simulateTraces)) {
+    trace.push(...t);
+  }
 
   return { results, errors, trace };
 }
