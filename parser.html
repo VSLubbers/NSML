@@ -18,7 +18,7 @@
   &lt;/queries&gt;
 &lt;/nsml&gt;"></textarea>
   <br>
-  <button onclick="parseNSML()">Parse NSML</button>
+  <button onclick="parseNSML()">Parse</button>
   <div class="grid-container">
     <div id="outputs">
       <div id="outputs-content">Outputs</div>
@@ -38,59 +38,46 @@
 
   <script src="dist/nsml-parser.min.js"></script>
   <script>
-    async function parseNSML() {
-      const input = document.getElementById('nsmlInput').value;
-      const outputsDiv = document.getElementById('outputs-content');
-      const errorsDiv = document.getElementById('errors-content');
-      const tracesDiv = document.getElementById('traces-content');
-      const outputsContainer = document.getElementById('outputs');
-      const rightColumn = document.querySelector('.right-column');
-      const gridContainer = document.querySelector('.grid-container');
+  async function parseNSML() {
+    const input = document.getElementById('nsmlInput').value;
+    const outputsDiv = document.getElementById('outputs-content');
+    const errorsDiv = document.getElementById('errors-content');
+    const tracesDiv = document.getElementById('traces-content');
+    const gridContainer = document.querySelector('.grid-container');
 
-      // Reset heights and content classes
-      outputsContainer.style.height = 'auto';
-      rightColumn.style.height = 'auto';
-      gridContainer.classList.remove('has-output');
+    // Clear content
+    outputsDiv.textContent = 'Outputs';
+    errorsDiv.textContent = 'Errors';
+    tracesDiv.textContent = 'Traces';
+    gridContainer.classList.remove('has-output');
 
-      try {
-        const result = await NSMLParser.parseNSML(input);
-        
-        // Add has-output class to hide initial text when actual content is present
-        gridContainer.classList.add('has-output');
+    try {
+      const result = await NSMLParser.parseNSML(input);
+      
+      // Add has-output class to hide initial text when actual content is present
+      gridContainer.classList.add('has-output');
 
-        // Format results
-        const outputsText = Object.entries(result.results || {})
-          .map(([key, value]) => `${key}: ${JSON.stringify(value, null, 2).replace(/^{|}$/g, '').trim()}`)
-          .join('\n') || 'No results';
-        outputsDiv.textContent = outputsText;
+      // Format results
+      const outputsText = Object.entries(result.results || {})
+        .map(([key, value]) => `${key}: ${JSON.stringify(value, null, 2).replace(/^{|}$/g, '').trim()}`)
+        .join('\n') || 'No results';
+      outputsDiv.textContent = outputsText;
 
-        // Format errors
-        const errorsText = (result.errors || [])
-          .map(err => `Line ${err.line || 'unknown'}: ${err.message}${err.suggestedFix ? ` (Suggested fix: ${err.suggestedFix})` : ''}`)
-          .join('\n') || 'No errors';
-        errorsDiv.textContent = errorsText;
+      // Format errors
+      const errorsText = (result.errors || [])
+        .map(err => `Line ${err.line || 'unknown'}: ${err.message}${err.suggestedFix ? ` (Suggested fix: ${err.suggestedFix})` : ''}`)
+        .join('\n') || 'No errors';
+      errorsDiv.textContent = errorsText;
 
-        // Format traces
-        const tracesText = (result.trace || []).join('\n') || 'No traces';
-        tracesDiv.textContent = tracesText;
-
-        // Dynamically set right column height to match the tallest
-        setTimeout(() => {
-          const outputsHeight = outputsContainer.offsetHeight;
-          const rightHeight = rightColumn.offsetHeight;
-          const maxHeight = Math.max(outputsHeight, rightHeight);
-          outputsContainer.style.height = `${maxHeight}px`;
-          rightColumn.style.height = `${maxHeight}px`;
-        }, 0); // Run after rendering
-      } catch (e) {
-        errorsDiv.textContent = `Error: ${e.message}`;
-        outputsDiv.textContent = 'No results';
-        tracesDiv.textContent = 'No traces';
-        // Reset heights on error
-        outputsContainer.style.height = 'auto';
-        rightColumn.style.height = 'auto';
-      }
+      // Format traces
+      const tracesText = (result.trace || []).join('\n') || 'No traces';
+      tracesDiv.textContent = tracesText;
+    } catch (e) {
+      errorsDiv.textContent = `Error: ${e.message}`;
+      outputsDiv.textContent = 'No results';
+      tracesDiv.textContent = 'No traces';
     }
-  </script>
+  }
+</script>
 </body>
 </html>
