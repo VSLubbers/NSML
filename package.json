@@ -3,11 +3,12 @@
   "version": "1.0.0",
   "description": "",
   "main": "dist/index.js",
+  "browser": "dist/nsml-parser.min.js",
   "type": "module",
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
-    "bundle": "npm run build && esbuild dist/index.js --bundle --outfile=dist/nsml-parser.min.js --platform=browser --format=iife --global-name=NSMLParser --minify",
+    "bundle": "npm run build && esbuild dist/index.js --bundle --outfile=dist/nsml-parser.min.js --platform=browser --format=iife --global-name=NSMLParser --minify --tree-shaking=true --minify-syntax=true",
     "test": "jest",
     "format": "prettier --write 'src/**/*.ts' 'tests/**/*.ts' 'utils/**/*.nsml'",
     "lint": "tsc --noEmit"

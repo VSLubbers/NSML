@@ -2,7 +2,9 @@ body {
   background-color: #121212;
   color: #e0e0e0;
   font-family: 'Arial', sans-serif; /* Fallback */
-  max-width: 800px;
+  max-width: 90%; /* Scales with viewport, up to 90% */
+  width: 100%;
+  max-width: 65rem; /* Caps at ~1280px (assuming 1rem = 16px) for large screens */
   margin: 20px auto;
   padding: 20px;
   box-sizing: border-box;
@@ -10,10 +12,12 @@ body {
 
 h1 {
   color: #ffffff;
-  font-family: 'Roboto Serif', serif;
+  font-family: 'Roboto Mono', monospace; /* Clean, modern sans-serif */
+  font-weight: 500; /* Medium weight for minimalism */
   text-align: center;
-  margin-bottom: 20px;
-  font-size: 1.5rem;
+  margin-bottom: 25px; /* Balanced spacing */
+  font-size: 1.8rem; /* Slightly larger for prominence */
+  padding-bottom: 5px; /* Space for border */
 }
 
 textarea {
@@ -45,7 +49,7 @@ textarea:focus {
 
 button {
   padding: 10px 20px;
-  background-color: #cc00cc; /* Magenta */
+  background-color: #e0e0e0; /* Soft off-white */
   color: #1e1e1e;
   border: none;
   border-radius: 4px;
@@ -58,7 +62,7 @@ button {
 }
 
 button:hover {
-  background-color: #ff00ff; /* Darker magenta */
+  background-color: #d0d0d0; /* Slightly darker off-white */
 }
 
 .grid-container {
@@ -126,4 +130,21 @@ button:hover {
   font-size: 14px;
   color: #cccccc; /* Slightly gray for readability */
   box-sizing: border-box;
+  margin-bottom: 20px; /* Space before credit box */
+}
+
+.credit-box {
+  width: 100%;
+  background-color: #2a1e2a; /* Soft pastel pinkish-purple, dark enough for theme */
+  border: 1px solid #ff99cc; /* Gentle pink border for charm */
+  border-radius: 8px; /* Rounder corners for a softer, endearing look */
+  padding: 12px; /* Slightly more padding for comfort */
+  font-family: 'Roboto Mono', monospace;
+  font-size: 14px;
+  color: #e0e0e0; /* Brighter text to stand out slightly */
+  box-sizing: border-box;
+  backdrop-filter: blur(4px); /* Subtle glassmorphism for modern feel */
+  box-shadow: 0 0 8px rgba(255, 153, 204, 0.15); /* Faint pink glow for warmth */
+  margin-top: 20px; /* Space from license box */
+  text-align: center; /* Centered for a friendly presentation */
 }
