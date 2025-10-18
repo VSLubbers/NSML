@@ -4,20 +4,18 @@ body {
   font-family: 'Arial', sans-serif; /* Fallback */
   max-width: 90%; /* Scales with viewport, up to 90% */
   width: 100%;
-  max-width: 65rem; /* Caps at ~1280px (assuming 1rem = 16px) for large screens */
+  max-width: 65rem; /* Caps at ~1040px (assuming 1rem = 16px) for large screens */
   margin: 20px auto;
   padding: 20px;
   box-sizing: border-box;
 }
 
-h1 {
-  color: #ffffff;
-  font-family: 'Roboto Mono', monospace; /* Clean, modern sans-serif */
-  font-weight: 500; /* Medium weight for minimalism */
-  text-align: center;
-  margin-bottom: 25px; /* Balanced spacing */
-  font-size: 1.8rem; /* Slightly larger for prominence */
-  padding-bottom: 5px; /* Space for border */
+.logo {
+  display: block;
+  margin: 0 auto 25px auto; /* Centered with same bottom margin as h1 */
+  max-width: 200px; /* Adjust based on logo size */
+  height: auto; /* Maintain aspect ratio */
+  filter: drop-shadow(0 0 5px rgba(0, 255, 255, 0.3)); /* Subtle cyan glow to match textarea focus */
 }
 
 textarea {
