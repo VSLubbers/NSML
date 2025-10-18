@@ -1,3 +1,31 @@
+/* Scrollbar styling for all elements */
+::-webkit-scrollbar {
+  width: 0.5rem;
+  height: 0.5rem;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #e0e0e0; /* White */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #d0d0d0; /* Slightly darker White on hover */
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-resizer {
+  background: #e0e0e0; /* White */
+  border-radius: 4px;
+}
+
 body {
   background-color: #121212;
   color: #e0e0e0;
@@ -15,7 +43,7 @@ body {
   margin: 0 auto 25px auto; /* Centered with same bottom margin as h1 */
   max-width: 200px; /* Adjust based on logo size */
   height: auto; /* Maintain aspect ratio */
-  filter: drop-shadow(0 0 5px rgba(0, 255, 255, 0.3)); /* Subtle cyan glow to match textarea focus */
+  filter: drop-shadow(0 0 5px rgba(0, 255, 255, 0.4)); /* Subtle cyan glow to match textarea focus */
 }
 
 textarea {
@@ -31,6 +59,8 @@ textarea {
   resize: vertical;
   margin-bottom: 10px;
   box-sizing: border-box;
+  scrollbar-gutter: stable;
+  overflow-y: scroll;
 }
 
 textarea::placeholder {

@@ -1,4 +1,3 @@
-// src/resolver.ts
 import {
   AstNode,
   SymbolTable,
@@ -132,6 +131,7 @@ export function resolve(
         break;
       case 'graph':
         const graph: Graph = { nodes: new Set(), edges: new Map() };
+        // Treat nodes as string literals, not references
         node.attributes.nodes
           ?.split(',')
           .forEach((n) => graph.nodes.add(n.trim()));
@@ -149,6 +149,9 @@ export function resolve(
           const from = parts[0].trim();
           const relation = parts.length === 3 ? parts[1].trim() : 'to';
           const to = parts[parts.length - 1].trim();
+          // Add nodes to graph.nodes if not already present
+          graph.nodes.add(from);
+          graph.nodes.add(to);
           if (!graph.edges.has(from)) {
             graph.edges.set(from, new Map());
           }
@@ -158,20 +161,22 @@ export function resolve(
         break;
       case 'entity':
         const props: Record<string, any> = {};
-        node.attributes.props?.split(',').forEach((p) => {
-          const [key, val] = p.split('=').map((s) => s.trim());
-          if (!key || !val) {
-            errors.push({
-              type: 'semantic',
-              message: `Invalid prop '${p}' in entity '${name}'`,
-              line: node.line,
-              suggestedFix: 'Use format key=value',
-            });
-            return;
-          }
-          // For entity props, use 'any' type to allow flexible literals
-          props[key] = parseValue(val, 'any', symbols, errors, node.line);
-        });
+        node.attributes.props
+          ?.split(',')
+          .forEach((p) => {
+            const [key, val] = p.split('=').map((s) => s.trim());
+            if (!key || !val) {
+              errors.push({
+                type: 'semantic',
+                message: `Invalid prop '${p}' in entity '${name}'`,
+                line: node.line,
+                suggestedFix: 'Use format key=value',
+              });
+              return;
+            }
+            // For entity props, use 'any' type to allow flexible literals
+            props[key] = parseValue(val, 'any', symbols, errors, node.line);
+          });
         entry = { kind: 'entity', type: 'object', value: props, mutable: true };
         break;
       default:
@@ -275,7 +280,7 @@ export function parseValue(
       });
       return undefined;
     default:
-      return val;
+      return val; // Treat as string literal for 'any' or other types
   }
 }
 
