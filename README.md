@@ -140,15 +140,16 @@ Each module can be imported and extended individually.
 ```xml
 <nsml>
   <symbols>
-    <entity name="Alice" />
-    <entity name="Bob" />
-    <graph name="family" edges="Alice->parentOf->Bob" />
+    <entity name="Alice" props="age=30" />
+    <entity name="Bob" props="age=10" />
+    <graph name="family" nodes="Alice,Bob" edges="Alice->parentOf->Bob" />
   </symbols>
   <rules>
-    <rule name="parentIsAdult">parentOf(x, y) => adult(x)</rule>
+    <rule name="adult">item.age >= 18</rule>
+    <rule name="parentImplication">parentOf(x, y) => eval(adult(x))</rule>
   </rules>
   <queries>
-    <query name="checkAdult" target="Alice">eval(adult(Alice))</query>
+    <query name="checkAliceAdult">eval(adult(Alice))</query>
   </queries>
 </nsml>
 ```
